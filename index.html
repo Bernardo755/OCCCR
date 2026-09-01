@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor OCR Masivo - Rangos Dinámicos y Cámara en Vivo</title>
+    <title>Extractor OCR Masivo - Rangos Dinámicos y Cámara Independiente</title>
     
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -89,9 +89,6 @@
             border: 2px solid #bdc3c7;
             background: #2c3e50;
             border-radius: 6px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
         #canvas-wrapper {
             position: relative;
@@ -99,12 +96,15 @@
             cursor: crosshair;
             user-select: none;
         }
-        #preview-img, #live-video {
+        #preview-img {
             display: block;
-            max-width: none;
+            width: auto;
             height: auto;
+            max-width: none;
+            max-height: none;
         }
         #live-video {
+            display: block;
             width: 100%;
             height: 100%;
             object-fit: contain;
@@ -116,7 +116,7 @@
             background: rgba(231, 76, 60, 0.25);
             display: none;
             z-index: 10;
-            pointer-events: none; /* Para que no bloquee el mouse al arrastrar */
+            pointer-events: none;
         }
 
         .saved-box {
@@ -184,8 +184,8 @@
 <body>
 
     <div class="container">
-        <h1>📸 Extractor OCR Masivo (Rangos Dinámicos y Cámara en Vivo)</h1>
-        <p class="subtitle">Configura cuántos campos deseas extraer, selecciona tu fuente (fotos, carpeta o cámara) y dibuja los recuadros en orden.</p>
+        <h1>📸 Extractor OCR Masivo (Rangos Dinámicos y Cámara Independiente)</h1>
+        <p class="subtitle">Configura cuántos campos deseas extraer, selecciona tu fuente y dibuja los recuadros en orden.</p>
 
         <!-- Configuración de Cantidad de Rangos -->
         <div class="config-section">
@@ -263,7 +263,7 @@
         let listaImagenes = [];
         let indiceActual = 0;
         let tablaData = [];
-        let fuenteActiva = null; 
+        let fuenteActiva = null; // 'galeria' o 'camara'
         
         let mediaStream = null;
         let videoElement = null;
@@ -371,13 +371,8 @@
             actualizarUIformulario();
             limpiarInputsFormulario();
 
-            // Garantizar enlace de eventos al cargar la imagen
-            imgElement.onload = function() {
-                configurarEventosSeleccion();
-            };
-            if (imgElement.complete) {
-                configurarEventosSeleccion();
-            }
+            // Configurar manejadores de eventos específicos para Galería
+            configurarEventosGaleria();
         }
 
         async function iniciarCamaraEnVivo() {
@@ -385,6 +380,9 @@
             fuenteActiva = 'camara';
             
             const wrapper = document.getElementById('canvas-wrapper');
+            // Asegurar dimensiones fijas o adaptadas para la cámara en vivo
+            wrapper.style.width = "100%";
+            wrapper.style.height = "100%";
             wrapper.innerHTML = `
                 <video id="live-video" autoplay playsinline></video>
                 <div id="selection-box" class="selection-box"></div>
@@ -409,9 +407,11 @@
                 document.getElementById('panel-title').innerText = "Cámara en Tiempo Real";
                 document.getElementById('btn-detener-camara').style.display = 'block';
 
+                // Configurar manejadores de eventos específicos para Cámara
                 videoElement.onloadedmetadata = function() {
-                    configurarEventosSeleccion();
+                    configurarEventosCamara();
                 };
+                configurarEventosCamara();
             } catch (err) {
                 console.error(err);
                 alert("No se pudo acceder a la cámara. Revisa los permisos del navegador.");
@@ -422,23 +422,21 @@
         function apagarCamara() {
             detenerFlujosPrevios();
             const wrapper = document.getElementById('canvas-wrapper');
+            wrapper.style.width = "auto";
+            wrapper.style.height = "auto";
             wrapper.innerHTML = `<span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Cámara apagada</span>`;
             document.getElementById('queue-banner').style.display = 'none';
             document.getElementById('btn-detener-camara').style.display = 'none';
             document.getElementById('loading-status').innerText = "🛑 Cámara apagada.";
         }
 
-        function configurarEventosSeleccion() {
+        function configurarEventosGaleria() {
             const wrapper = document.getElementById('canvas-wrapper');
             if (!wrapper) return;
 
-            // Reemplazar eventos limpiando listeners previos mediante clonación o asignación limpia
             wrapper.onmousedown = function(e) {
-                if (fuenteActiva === 'galeria' && !imgElement) return;
-                if (fuenteActiva === 'camara' && !videoElement) return;
-
-                if (recuadrosActuales.length >= totalRangos) {
-                    alert(`Ya has seleccionado los ${totalRangos} recuadros. Haz clic en 'Ejecutar OCR'.`);
+                if (!imgElement || recuadrosActuales.length >= totalRangos) {
+                    if (recuadrosActuales.length >= totalRangos) alert(`Ya has seleccionado los ${totalRangos} recuadros.`);
                     return;
                 }
 
@@ -453,7 +451,89 @@
                 currentSelectionBox.style.height = '0px';
                 currentSelectionBox.style.display = 'block';
 
-                // Añadir eventos globales en el documento para rastrear el arrastre fluido
+                document.onmousemove = function(e) {
+                    if (!isDrawing) return;
+                    let currentX = e.clientX - rect.left;
+                    let currentY = e.clientY - rect.top;
+
+                    currentX = Math.max(0, Math.min(currentX, wrapper.clientWidth));
+                    currentY = Math.max(0, Math.min(currentY, wrapper.clientHeight));
+
+                    const width = currentX - startX;
+                    const height = currentY - startY;
+
+                    currentSelectionBox.style.width = Math.abs(width) + 'px';
+                    currentSelectionBox.style.height = Math.abs(height) + 'px';
+                    currentSelectionBox.style.left = (width < 0 ? currentX : startX) + 'px';
+                    currentSelectionBox.style.top = (height < 0 ? currentY : startY) + 'px';
+                };
+
+                document.onmouseup = function() {
+                    if (!isDrawing) return;
+                    isDrawing = false;
+                    document.onmousemove = null;
+                    document.onmouseup = null;
+
+                    const width = parseInt(currentSelectionBox.style.width);
+                    const height = parseInt(currentSelectionBox.style.height);
+
+                    if (width > 5 && height > 5) {
+                        const boxData = {
+                            left: currentSelectionBox.style.left,
+                            top: currentSelectionBox.style.top,
+                            width: currentSelectionBox.style.width,
+                            height: currentSelectionBox.style.height
+                        };
+
+                        recuadrosActuales.push(boxData);
+                        currentSelectionBox.style.display = 'none';
+
+                        const permBox = document.createElement('div');
+                        permBox.className = 'saved-box';
+                        permBox.style.left = boxData.left;
+                        permBox.style.top = boxData.top;
+                        permBox.style.width = boxData.width;
+                        permBox.style.height = boxData.height;
+                        permBox.innerHTML = `<span>R${recuadrosActuales.length}</span>`;
+                        wrapper.appendChild(permBox);
+
+                        actualizarUIformulario();
+
+                        if (recuadrosActuales.length < totalRangos) {
+                            document.getElementById('loading-status').innerText = `✅ Rango ${recuadrosActuales.length} guardado. Dibuja el Rango ${recuadrosActuales.length + 1}.`;
+                        } else {
+                            document.getElementById('loading-status').innerText = `🎉 ¡Los ${totalRangos} recuadros están listos! Pulsa "Ejecutar OCR".`;
+                        }
+                    } else {
+                        currentSelectionBox.style.display = 'none';
+                    }
+                };
+
+                e.preventDefault();
+            };
+        }
+
+        function configurarEventosCamara() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            if (!wrapper) return;
+
+            wrapper.onmousedown = function(e) {
+                if (!videoElement || recuadrosActuales.length >= totalRangos) {
+                    if (recuadrosActuales.length >= totalRangos) alert(`Ya has seleccionado los ${totalRangos} recuadros.`);
+                    return;
+                }
+
+                const rect = wrapper.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                isDrawing = true;
+
+                currentSelectionBox.style.left = startX + 'px';
+                currentSelectionBox.style.top = startY + 'px';
+                currentSelectionBox.style.width = '0px';
+                currentSelectionBox.style.height = '0px';
+                currentSelectionBox.style.display = 'block';
+
                 document.onmousemove = function(e) {
                     if (!isDrawing) return;
                     let currentX = e.clientX - rect.left;
