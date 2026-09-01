@@ -95,13 +95,14 @@
             display: inline-block;
             cursor: crosshair;
             user-select: none;
+            transform-origin: top left;
+            transition: transform 0.1s ease-out;
         }
         #preview-img {
             display: block;
-            width: auto;
-            height: auto;
             max-width: none;
-            max-height: none;
+            height: auto;
+            pointer-events: none;
         }
         #live-video {
             display: block;
@@ -116,7 +117,6 @@
             background: rgba(231, 76, 60, 0.25);
             display: none;
             z-index: 10;
-            pointer-events: none;
         }
 
         .saved-box {
@@ -124,7 +124,6 @@
             border: 2px solid #2ecc71;
             background: rgba(46, 204, 113, 0.3);
             z-index: 5;
-            pointer-events: none;
         }
         .saved-box span {
             position: absolute;
@@ -227,7 +226,7 @@
                         <span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Sin fuente activa</span>
                     </div>
                 </div>
-                <p style="font-size: 12px; color: #666; margin-top: 6px;">💡 Dibuja consecutivamente los recuadros indicados.</p>
+                <p style="font-size: 12px; color: #666; margin-top: 6px;">💡 Usa la rueda del mouse (Scroll) para hacer Zoom in/out y arrastra para dibujar.</p>
             </div>
 
             <!-- Panel Derecho: Campos Dinámicos y Tabla -->
@@ -273,6 +272,7 @@
         let startX = 0, startY = 0;
         let recuadrosActuales = [];
         let currentSelectionBox = null;
+        let zoomScale = 1;
 
         window.onload = function() {
             actualizarTotalRangos();
@@ -354,6 +354,9 @@
 
             const foto = listaImagenes[indiceActual];
             const wrapper = document.getElementById('canvas-wrapper');
+            zoomScale = 1;
+            wrapper.style.transform = `scale(${zoomScale})`;
+            
             wrapper.innerHTML = `
                 <img id="preview-img" src="${foto.src}" alt="${foto.name}">
                 <div id="selection-box" class="selection-box"></div>
@@ -371,18 +374,21 @@
             actualizarUIformulario();
             limpiarInputsFormulario();
 
-            // Configurar manejadores de eventos específicos para Galería
-            configurarEventosGaleria();
+            imgElement.onload = function() {
+                configurarEventosGaleria();
+            };
+            if (imgElement.complete) {
+                configurarEventosGaleria();
+            }
         }
 
         async function iniciarCamaraEnVivo() {
             detenerFlujosPrevios();
             fuenteActiva = 'camara';
-            
+            zoomScale = 1;
+
             const wrapper = document.getElementById('canvas-wrapper');
-            // Asegurar dimensiones fijas o adaptadas para la cámara en vivo
-            wrapper.style.width = "100%";
-            wrapper.style.height = "100%";
+            wrapper.style.transform = `scale(${zoomScale})`;
             wrapper.innerHTML = `
                 <video id="live-video" autoplay playsinline></video>
                 <div id="selection-box" class="selection-box"></div>
@@ -407,10 +413,6 @@
                 document.getElementById('panel-title').innerText = "Cámara en Tiempo Real";
                 document.getElementById('btn-detener-camara').style.display = 'block';
 
-                // Configurar manejadores de eventos específicos para Cámara
-                videoElement.onloadedmetadata = function() {
-                    configurarEventosCamara();
-                };
                 configurarEventosCamara();
             } catch (err) {
                 console.error(err);
@@ -422,8 +424,6 @@
         function apagarCamara() {
             detenerFlujosPrevios();
             const wrapper = document.getElementById('canvas-wrapper');
-            wrapper.style.width = "auto";
-            wrapper.style.height = "auto";
             wrapper.innerHTML = `<span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Cámara apagada</span>`;
             document.getElementById('queue-banner').style.display = 'none';
             document.getElementById('btn-detener-camara').style.display = 'none';
@@ -432,7 +432,20 @@
 
         function configurarEventosGaleria() {
             const wrapper = document.getElementById('canvas-wrapper');
+            const scrollContainer = document.getElementById('image-scroll-container');
             if (!wrapper) return;
+
+            // Zoom con la rueda del ratón
+            scrollContainer.onwheel = function(e) {
+                e.preventDefault();
+                const zoomIntensity = 0.1;
+                if (e.deltaY < 0) {
+                    zoomScale += zoomIntensity;
+                } else {
+                    zoomScale = Math.max(0.5, zoomScale - zoomIntensity);
+                }
+                wrapper.style.transform = `scale(${zoomScale})`;
+            };
 
             wrapper.onmousedown = function(e) {
                 if (!imgElement || recuadrosActuales.length >= totalRangos) {
@@ -441,8 +454,9 @@
                 }
 
                 const rect = wrapper.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                startY = e.clientY - rect.top;
+                // Coordenadas escaladas por el zoom actual
+                startX = (e.clientX - rect.left) / zoomScale;
+                startY = (e.clientY - rect.top) / zoomScale;
                 isDrawing = true;
 
                 currentSelectionBox.style.left = startX + 'px';
@@ -453,11 +467,8 @@
 
                 document.onmousemove = function(e) {
                     if (!isDrawing) return;
-                    let currentX = e.clientX - rect.left;
-                    let currentY = e.clientY - rect.top;
-
-                    currentX = Math.max(0, Math.min(currentX, wrapper.clientWidth));
-                    currentY = Math.max(0, Math.min(currentY, wrapper.clientHeight));
+                    let currentX = (e.clientX - rect.left) / zoomScale;
+                    let currentY = (e.clientY - rect.top) / zoomScale;
 
                     const width = currentX - startX;
                     const height = currentY - startY;
@@ -515,7 +526,19 @@
 
         function configurarEventosCamara() {
             const wrapper = document.getElementById('canvas-wrapper');
+            const scrollContainer = document.getElementById('image-scroll-container');
             if (!wrapper) return;
+
+            scrollContainer.onwheel = function(e) {
+                e.preventDefault();
+                const zoomIntensity = 0.1;
+                if (e.deltaY < 0) {
+                    zoomScale += zoomIntensity;
+                } else {
+                    zoomScale = Math.max(0.5, zoomScale - zoomIntensity);
+                }
+                wrapper.style.transform = `scale(${zoomScale})`;
+            };
 
             wrapper.onmousedown = function(e) {
                 if (!videoElement || recuadrosActuales.length >= totalRangos) {
@@ -524,8 +547,8 @@
                 }
 
                 const rect = wrapper.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                startY = e.clientY - rect.top;
+                startX = (e.clientX - rect.left) / zoomScale;
+                startY = (e.clientY - rect.top) / zoomScale;
                 isDrawing = true;
 
                 currentSelectionBox.style.left = startX + 'px';
@@ -536,11 +559,8 @@
 
                 document.onmousemove = function(e) {
                     if (!isDrawing) return;
-                    let currentX = e.clientX - rect.left;
-                    let currentY = e.clientY - rect.top;
-
-                    currentX = Math.max(0, Math.min(currentX, wrapper.clientWidth));
-                    currentY = Math.max(0, Math.min(currentY, wrapper.clientHeight));
+                    let currentX = (e.clientX - rect.left) / zoomScale;
+                    let currentY = (e.clientY - rect.top) / zoomScale;
 
                     const width = currentX - startX;
                     const height = currentY - startY;
@@ -634,8 +654,8 @@
                 if (fuenteActiva === 'galeria') {
                     const foto = listaImagenes[indiceActual];
                     nombreFuente = foto.name;
-                    const scaleX = imgElement.naturalWidth / imgElement.width;
-                    const scaleY = imgElement.naturalHeight / imgElement.height;
+                    const scaleX = imgElement.naturalWidth / imgElement.clientWidth;
+                    const scaleY = imgElement.naturalHeight / imgElement.clientHeight;
 
                     for (let i = 0; i < totalRangos; i++) {
                         const b = recuadrosActuales[i];
