@@ -229,11 +229,30 @@
             box-shadow: 0 0 8px rgba(0,0,0,0.3);
         }
 
+        /* Botón de eliminar fila en tabla */
+        .btn-eliminar-fila {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 22px;
+            height: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+        .btn-eliminar-fila:hover { background-color: #c0392b; }
+
         table {
             width: 100%; border-collapse: collapse; margin-top: 10px; background: white;
         }
         th, td { border: 1px solid #ddd; padding: 5px; text-align: left; font-size: 11px; }
-        th { background-color: #f2f2f2; }
+        th { background-color: #f2f2f2; text-align: center; }
+        td:first-child { text-align: center; width: 35px; }
 
         .loading-status {
             text-align: center; font-weight: bold; color: #e67e22; margin: 8px 0; font-size: 14px;
@@ -255,7 +274,7 @@
 
     <div class="container">
         <h1>📸 Extractor OCR Multimodo (Rango 0 + Cámara)</h1>
-        <p class="subtitle">Pestaña 1: Lote de fotos | Pestaña 2: Cámara en vivo con selección de dispositivo y Rango 0.</p>
+        <p class="subtitle">Pestaña 1: Lote de fotos | Pestaña 2: Cámara en vivo con selector de dispositivo y Rango 0.</p>
 
         <div class="tabs-nav">
             <button class="tab-btn active" onclick="cambiarPestaña(1)">📂 Pestaña 1: Lote de Fotos</button>
@@ -324,12 +343,16 @@
                     <div style="overflow-x: auto; max-height: 140px;">
                         <table id="tabla-datos-1">
                             <thead>
-                                <tr id="tabla-head-1"><th>Archivo</th></tr>
+                                <tr id="tabla-head-1"><th>❌</th><th>Archivo</th></tr>
                             </thead>
                             <tbody></tbody>
                         </table>
                     </div>
-                    <button class="btn btn-secondary" onclick="appFotos.exportarExcel()" style="margin-top: 10px;">📥 Descargar Excel (.xlsx)</button>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="appFotos.exportarExcel()" style="margin:0; flex:1;">📥 Descargar Excel</button>
+                        <button class="btn btn-danger" onclick="appFotos.limpiarTodoApp()" style="margin:0; flex:1;">🗑️ Limpiar Todo</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -391,12 +414,16 @@
                     <div style="overflow-x: auto; max-height: 140px;">
                         <table id="tabla-datos-2">
                             <thead>
-                                <tr id="tabla-head-2"><th>Captura / Hora</th></tr>
+                                <tr id="tabla-head-2"><th>❌</th><th>Captura / Hora</th></tr>
                             </thead>
                             <tbody></tbody>
                         </table>
                     </div>
-                    <button class="btn btn-secondary" onclick="appCamara.exportarExcel()" style="margin-top: 10px;">📥 Descargar Excel (.xlsx)</button>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="appCamara.exportarExcel()" style="margin:0; flex:1;">📥 Descargar Excel</button>
+                        <button class="btn btn-danger" onclick="appCamara.limpiarTodoApp()" style="margin:0; flex:1;">🗑️ Limpiar Todo</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -546,11 +573,62 @@
             actualizarTablaHeaders() {
                 const trHead = document.getElementById(`tabla-head-${this.id}`);
                 let tituloCol = this.esCamara ? 'Captura / Hora' : 'Archivo';
-                let html = `<th>${tituloCol}</th><th>R0</th>`;
+                let html = `<th>❌</th><th>${tituloCol}</th><th>R0</th>`;
                 for (let i = 1; i <= this.totalRangos; i++) {
                     html += `<th>R${i}</th>`;
                 }
                 trHead.innerHTML = html;
+            }
+
+            renderizarTablaHTML() {
+                const tbody = document.querySelector(`#tabla-datos-${this.id} tbody`);
+                tbody.innerHTML = '';
+
+                this.tablaData.forEach((row, index) => {
+                    const tr = document.createElement('tr');
+                    
+                    let colPrincipal = this.esCamara ? (row['Captura / Hora'] || '') : (row['Archivo'] || '');
+                    let html = `<td><button class="btn-eliminar-fila" onclick="app${this.esCamara ? 'Camara' : 'Fotos'}.eliminarFila(${index})" title="Quitar este registro">X</button></td>`;
+                    html += `<td>${colPrincipal}</td>`;
+                    html += `<td>${row['R0'] || ''}</td>`;
+
+                    for (let i = 1; i <= this.totalRangos; i++) {
+                        html += `<td>${row[`R${i}`] || ''}</td>`;
+                    }
+                    tr.innerHTML = html;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            eliminarFila(index) {
+                this.tablaData.splice(index, 1);
+                this.renderizarTablaHTML();
+            }
+
+            limpiarTodoApp() {
+                if (!confirm("¿Estás seguro de que deseas limpiar todo (tabla, imágenes y campos)?")) return;
+
+                this.tablaData = [];
+                this.renderizarTablaHTML();
+                this.recuadrosActuales = [];
+
+                if (!this.esCamara) {
+                    this.listaImagenes = [];
+                    this.indiceActual = 0;
+                    const wrapper = document.getElementById(`wrapper-${this.id}`);
+                    wrapper.innerHTML = `<span style="color: #fff; padding: 20px; display: block;">Sin imágenes cargadas</span><div id="sel-box-${this.id}" class="selection-box"></div><div id="zoom-box-${this.id}" class="zoom-selection-box"></div>`;
+                    document.getElementById(`queue-banner-${this.id}`).style.display = 'none';
+                    document.getElementById(`loading-status-${this.id}`).innerText = "Sube fotos o una carpeta para comenzar.";
+                } else {
+                    this.apagarCamara();
+                    document.getElementById(`loading-status-${this.id}`).innerText = "Cámara apagada y datos limpiados.";
+                }
+
+                for(let i=0; i<=this.totalRangos; i++) {
+                    const input = document.getElementById(`rango-${this.id}-${i}`);
+                    if(input) input.value = '';
+                }
+                this.actualizarUIformulario();
             }
 
             cargarImagenes(event) {
@@ -891,7 +969,6 @@
                                 const ret = await worker.recognize(croppedDataUrl);
                                 let texto = ret.data.text.trim();
                                 
-                                // Corrección robusta para conservar correctamente '@' y '.' sin espacios molestos
                                 texto = texto.replace(/\s*@\s*/g, '@');
                                 texto = texto.replace(/\s*\.\s*/g, '.');
                                 texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
@@ -913,15 +990,7 @@
                         rowData[`R${i+1}`] = resultadosOCR[i];
                     }
                     this.tablaData.push(rowData);
-
-                    const tbody = document.querySelector(`#tabla-datos-${this.id} tbody`);
-                    let trHtml = `<td>${foto.name}</td><td>${valR0}</td>`;
-                    for (let i = 0; i < this.totalRangos; i++) {
-                        trHtml += `<td>${resultadosOCR[i]}</td>`;
-                    }
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = trHtml;
-                    tbody.appendChild(tr);
+                    this.renderizarTablaHTML();
 
                     document.getElementById(`rango-${this.id}-0`).value = '';
                     document.getElementById(`rango-${this.id}-0`).focus();
@@ -989,7 +1058,6 @@
                         const ret = await worker.recognize(croppedDataUrl);
                         let texto = ret.data.text.trim();
                         
-                        // Corrección robusta para conservar correctamente '@' y '.' sin espacios molestos
                         texto = texto.replace(/\s*@\s*/g, '@');
                         texto = texto.replace(/\s*\.\s*/g, '.');
                         texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
@@ -1008,15 +1076,7 @@
                         rowData[`R${i+1}`] = resultadosOCR[i];
                     }
                     this.tablaData.push(rowData);
-
-                    const tbody = document.querySelector(`#tabla-datos-${this.id} tbody`);
-                    let trHtml = `<td>Captura ${timestamp}</td><td>${valR0}</td>`;
-                    for (let i = 0; i < this.totalRangos; i++) {
-                        trHtml += `<td>${resultadosOCR[i]}</td>`;
-                    }
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = trHtml;
-                    tbody.appendChild(tr);
+                    this.renderizarTablaHTML();
 
                     document.getElementById(`rango-${this.id}-0`).value = '';
                     document.getElementById(`rango-${this.id}-0`).focus();
