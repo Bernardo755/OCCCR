@@ -526,7 +526,6 @@
 
             generarCamposFormulario() {
                 const container = document.getElementById(`campos-container-${this.id}`);
-                // Generar Rango 0 primero (para lectora o texto manual)
                 let html = `
                     <div class="form-group" style="background: #eef9ff; padding: 6px; border-radius: 4px; border: 1px solid #bce8f1; margin-bottom: 12px;">
                         <label style="color: #31708f;">📌 Rango 0 (Lectora / Texto Manual):</label>
@@ -582,6 +581,10 @@
 
             mostrarFotoActual() {
                 if (this.listaImagenes.length === 0) return;
+
+                if (this.indiceActual >= this.listaImagenes.length) {
+                    this.indiceActual = this.listaImagenes.length - 1;
+                }
 
                 const foto = this.listaImagenes[this.indiceActual];
                 const wrapper = document.getElementById(`wrapper-${this.id}`);
@@ -832,7 +835,6 @@
                 if (selBox) selBox.style.display = 'none';
                 if (zoomBox) zoomBox.style.display = 'none';
 
-                // Limpiar inputs OCR pero mantener o limpiar Rango 0 a gusto del usuario (aquí dejamos R0 intacto por si escanean en serie, o se puede limpiar si prefieren)
                 for(let i=1; i<=this.totalRangos; i++) {
                     const input = document.getElementById(`rango-${this.id}-${i}`);
                     if(input) input.value = '';
@@ -842,9 +844,18 @@
             }
 
             async ejecutarProcesoYpasarSiguiente() {
+                if (this.listaImagenes.length === 0) {
+                    alert("No hay imágenes cargadas.");
+                    return;
+                }
+
                 if (this.recuadrosActuales.length < this.totalRangos) {
                     alert(`Debes seleccionar exactamente los ${this.totalRangos} recuadros antes de ejecutar el proceso.`);
                     return;
+                }
+
+                if (this.indiceActual >= this.listaImagenes.length) {
+                    this.indiceActual = 0;
                 }
 
                 const foto = this.listaImagenes[this.indiceActual];
@@ -879,8 +890,12 @@
                                 const croppedDataUrl = canvas.toDataURL('image/png');
                                 const ret = await worker.recognize(croppedDataUrl);
                                 let texto = ret.data.text.trim();
+                                
+                                // Corrección robusta para conservar correctamente '@' y '.' sin espacios molestos
                                 texto = texto.replace(/\s*@\s*/g, '@');
+                                texto = texto.replace(/\s*\.\s*/g, '.');
                                 texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
+                                
                                 resolve(texto);
                             };
                         });
@@ -908,7 +923,6 @@
                     tr.innerHTML = trHtml;
                     tbody.appendChild(tr);
 
-                    // Limpiar Rango 0 para el siguiente escaneo/lectura
                     document.getElementById(`rango-${this.id}-0`).value = '';
                     document.getElementById(`rango-${this.id}-0`).focus();
 
@@ -919,8 +933,8 @@
                         if (this.indiceActual < this.listaImagenes.length) {
                             this.mostrarFotoActual();
                         } else {
-                            alert("¡Has terminado de procesar todas las fotos!");
-                            document.getElementById(`loading-status-${this.id}`).innerText = "🏁 ¡Lote completado!";
+                            this.indiceActual = this.listaImagenes.length - 1;
+                            document.getElementById(`loading-status-${this.id}`).innerText = "🏁 ¡Lote completado! Puedes volver a ejecutar o subir más fotos.";
                         }
                     }, 1000);
 
@@ -974,7 +988,10 @@
 
                         const ret = await worker.recognize(croppedDataUrl);
                         let texto = ret.data.text.trim();
+                        
+                        // Corrección robusta para conservar correctamente '@' y '.' sin espacios molestos
                         texto = texto.replace(/\s*@\s*/g, '@');
+                        texto = texto.replace(/\s*\.\s*/g, '.');
                         texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
 
                         resultadosOCR[i] = texto;
@@ -1001,7 +1018,6 @@
                     tr.innerHTML = trHtml;
                     tbody.appendChild(tr);
 
-                    // Limpiar Rango 0 tras la captura para la siguiente lectura por lectora
                     document.getElementById(`rango-${this.id}-0`).value = '';
                     document.getElementById(`rango-${this.id}-0`).focus();
 
