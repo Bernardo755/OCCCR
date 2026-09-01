@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor OCR Masivo - Modos Avanzados de Zoom</title>
+    <title>Extractor OCR Masivo - Movimiento Activo</title>
     
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -120,7 +120,6 @@
             z-index: 10;
         }
 
-        /* Caja temporal específica para el modo de Zoom por Área */
         .zoom-selection-box {
             position: absolute;
             border: 2px dashed #3498db;
@@ -214,17 +213,15 @@
 <body>
 
     <div class="container">
-        <h1>📸 Extractor OCR Masivo (Zoom por Área Seleccionada)</h1>
-        <p class="subtitle">Usa el selector de modos para dibujar un área de zoom, seleccionar tus rangos o moverte libremente.</p>
+        <h1>📸 Extractor OCR Masivo</h1>
+        <p class="subtitle">Usa el selector de modos para dibujar rangos, hacer zoom por área o moverte libremente.</p>
 
-        <!-- Configuración de cantidad de rangos -->
         <div class="config-section">
             <label for="num-rangos">Cantidad de recuadros a extraer (1 a 20):</label>
             <input type="number" id="num-rangos" min="1" max="20" value="4" onchange="actualizarCantidadRangos()">
             <button class="btn btn-warning" onclick="resetearConfiguracionRangos()" style="width: auto; margin:0; padding: 6px 12px; font-size: 13px;">Aplicar / Reiniciar</button>
         </div>
 
-        <!-- Zona de Carga -->
         <div class="upload-section">
             <div class="upload-box" onclick="document.getElementById('file-input').click()">
                 <p>📂 <strong>Subir Fotos Individuales</strong></p>
@@ -244,7 +241,6 @@
         <div id="loading-status">Sube fotos o una carpeta para comenzar.</div>
 
         <div class="workspace">
-            <!-- Panel Izquierdo: Controles de Modo y Visualizador -->
             <div class="pane">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <h3 style="margin:0; border:none;">Imagen (<span id="active-box-label">Rango 1</span>/<span id="total-box-label">4</span>)</h3>
@@ -269,12 +265,9 @@
                 <p id="modo-instruccion" style="font-size: 11px; color: #2980b9; margin-top: 6px; font-weight: bold;">💡 Modo actual: Dibuja el recuadro para extraer el texto.</p>
             </div>
 
-            <!-- Panel Derecho: Campos dinámicos y Tabla -->
             <div class="pane">
                 <h3>2. Campos Extraídos</h3>
-                <div id="campos-dinamicos-container">
-                    <!-- Dinámico -->
-                </div>
+                <div id="campos-dinamicos-container"></div>
 
                 <button class="btn" onclick="ejecutarProcesoYpasarSiguiente()">⚡ Ejecutar OCR y Siguiente Foto ➡️</button>
 
@@ -286,9 +279,7 @@
                                 <th>Archivo</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <!-- Filas dinámicas -->
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
                 <button class="btn btn-secondary" onclick="exportarExcel()" style="margin-top: 10px;">📥 Descargar Excel (.xlsx)</button>
@@ -307,9 +298,8 @@
         let currentSelectionBox = null;
         let currentZoomBox = null;
 
-        let modoActual = 'seleccionar'; // 'seleccionar', 'zoom-area', 'navegar'
+        let modoActual = 'seleccionar';
 
-        // Zoom y Pan
         let scale = 1;
         let panX = 0;
         let panY = 0;
@@ -341,7 +331,7 @@
             } else {
                 container.className = 'modo-navegar';
                 btnNav.classList.add('active');
-                txtInstruccion.innerText = "💡 Modo actual: Arrastra la imagen para moverte libremente.";
+                txtInstruccion.innerText = "💡 Modo actual: Haz clic y arrastra la imagen para moverte libremente.";
             }
         }
 
@@ -419,7 +409,6 @@
 
             const foto = listaImagenes[indiceActual];
             const wrapper = document.getElementById('canvas-wrapper');
-            // Reconstruir estructura interna manteniendo elementos base
             wrapper.innerHTML = `
                 <img id="preview-img" src="${foto.src}" alt="${foto.name}">
                 <div id="selection-box" class="selection-box"></div>
@@ -461,7 +450,6 @@
             const container = document.getElementById('image-scroll-container');
             const wrapper = document.getElementById('canvas-wrapper');
 
-            // Zoom universal con rueda del ratón hacia el puntero
             container.onwheel = function(e) {
                 e.preventDefault();
                 if (!imgElement) return;
@@ -491,19 +479,21 @@
                 if (!imgElement) return;
 
                 if (e.button === 0) { // Clic izquierdo
-                    const rect = wrapper.getBoundingClientRect();
-                    startX = (e.clientX - rect.left) / scale;
-                    startY = (e.clientY - rect.top) / scale;
-                    isDrawing = true;
-
                     if (modoActual === 'navegar') {
                         isDraggingImage = true;
                         startPanX = e.clientX - panX;
                         startPanY = e.clientY - panY;
-                        isDrawing = false;
+                        
+                        document.addEventListener('mousemove', onMouseMoveGlobal);
+                        document.addEventListener('mouseup', onMouseUpGlobal);
                         e.preventDefault();
                         return;
                     }
+
+                    const rect = wrapper.getBoundingClientRect();
+                    startX = (e.clientX - rect.left) / scale;
+                    startY = (e.clientY - rect.top) / scale;
+                    isDrawing = true;
 
                     let activeBox = (modoActual === 'zoom-area') ? currentZoomBox : currentSelectionBox;
                     activeBox.style.left = startX + 'px';
@@ -542,14 +532,16 @@
             }
 
             function onMouseUpGlobal(e) {
+                document.removeEventListener('mousemove', onMouseMoveGlobal);
+                document.removeEventListener('mouseup', onMouseUpGlobal);
+
                 if (isDraggingImage) {
                     isDraggingImage = false;
+                    return;
                 }
 
                 if (!isDrawing) return;
                 isDrawing = false;
-                document.removeEventListener('mousemove', onMouseMoveGlobal);
-                document.removeEventListener('mouseup', onMouseUpGlobal);
 
                 if (modoActual === 'zoom-area') {
                     const width = parseFloat(currentZoomBox.style.width);
@@ -560,7 +552,6 @@
                         const boxLeft = parseFloat(currentZoomBox.style.left);
                         const boxTop = parseFloat(currentZoomBox.style.top);
 
-                        // Calcular el zoom y centrar exactamente en el área seleccionada
                         const containerWidth = container.clientWidth;
                         const containerHeight = container.clientHeight;
 
@@ -574,12 +565,11 @@
                         panY = -boxTop * scale + (containerHeight - height * scale) / 2;
 
                         actualizarTransformacionCanvas();
-                        cambiarModo('seleccionar'); // Regresa automáticamente al modo selección tras ampliar
+                        cambiarModo('seleccionar');
                     }
                     return;
                 }
 
-                // Modo Seleccionar Rango
                 const width = parseFloat(currentSelectionBox.style.width);
                 const height = parseFloat(currentSelectionBox.style.height);
                 currentSelectionBox.style.display = 'none';
