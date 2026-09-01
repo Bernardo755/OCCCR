@@ -65,7 +65,6 @@
         }
         .pane h3 { margin-top: 0; color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 8px; }
 
-        /* Contenedor grande de la imagen con scroll para hacerla más grande */
         #image-scroll-container {
             position: relative;
             width: 100%;
@@ -82,27 +81,29 @@
             position: relative;
             display: inline-block;
             cursor: crosshair;
+            user-select: none;
         }
         #preview-img {
             display: block;
             max-width: none;
             height: auto;
+            pointer-events: none;
         }
 
-        /* Capa de selección manual con el ratón */
         #selection-box {
             position: absolute;
             border: 2px dashed #e74c3c;
             background: rgba(231, 76, 60, 0.3);
             display: none;
             pointer-events: none;
+            z-index: 10;
         }
 
-        /* Recuadros ya seleccionados */
         .user-selected-box {
             position: absolute;
             border: 2px solid #2ecc71;
             background: rgba(46, 204, 113, 0.35);
+            z-index: 5;
         }
 
         .form-group { margin-bottom: 12px; }
@@ -198,7 +199,7 @@
         let tablaData = [];
         let imgElement = null;
         let isDrawing = false;
-        let startX, startY, endX, endY;
+        let startX = 0, startY = 0;
         let currentImageSrc = null;
 
         function cargarImagen(event) {
@@ -228,6 +229,9 @@
             const wrapper = document.getElementById('canvas-wrapper');
             const selectionBox = document.getElementById('selection-box');
 
+            // Limpiar eventos previos si los hubiera
+            wrapper.onmousedown = null;
+
             wrapper.onmousedown = function(e) {
                 if (!imgElement) return;
                 const rect = wrapper.getBoundingClientRect();
@@ -240,13 +244,22 @@
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.style.display = 'block';
+
+                // Escuchar movimiento y soltar en todo el documento para evitar fallos al arrastrar fuera
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+                e.preventDefault();
             };
 
-            wrapper.onmousemove = function(e) {
+            function onMouseMove(e) {
                 if (!isDrawing) return;
                 const rect = wrapper.getBoundingClientRect();
-                const currentX = e.clientX - rect.left;
-                const currentY = e.clientY - rect.top;
+                let currentX = e.clientX - rect.left;
+                let currentY = e.clientY - rect.top;
+
+                // Restringir dentro de los límites de la imagen
+                currentX = Math.max(0, Math.min(currentX, wrapper.clientWidth));
+                currentY = Math.max(0, Math.min(currentY, wrapper.clientHeight));
 
                 const width = currentX - startX;
                 const height = currentY - startY;
@@ -255,21 +268,19 @@
                 selectionBox.style.height = Math.abs(height) + 'px';
                 selectionBox.style.left = (width < 0 ? currentX : startX) + 'px';
                 selectionBox.style.top = (height < 0 ? currentY : startY) + 'px';
-            };
+            }
 
-            wrapper.onmouseup = function(e) {
+            function onMouseUp(e) {
                 if (!isDrawing) return;
                 isDrawing = false;
-                const rect = wrapper.getBoundingClientRect();
-                endX = e.clientX - rect.left;
-                endY = e.clientY - rect.top;
-            };
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            }
         }
 
         function limpiarSelecciones() {
             const selectionBox = document.getElementById('selection-box');
             if (selectionBox) selectionBox.style.display = 'none';
-            // Remover recuadros previos guardados visualmente
             document.querySelectorAll('.user-selected-box').forEach(el => el.remove());
             document.getElementById('campo-texto').value = '';
         }
@@ -286,7 +297,6 @@
                 return;
             }
 
-            // Obtener coordenadas relativas a la imagen real
             const scaleX = imgElement.naturalWidth / imgElement.width;
             const scaleY = imgElement.naturalHeight / imgElement.height;
 
@@ -297,7 +307,6 @@
 
             document.getElementById('loading-status').innerText = "⏳ Extrayendo texto del área seleccionada...";
 
-            // Crear un canvas temporal para recortar la sección exacta de la imagen
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
@@ -310,7 +319,6 @@
                 const croppedDataUrl = canvas.toDataURL('image/png');
 
                 try {
-                    // Ejecutar Tesseract OCR solo en el recorte seleccionado
                     const worker = await Tesseract.createWorker('spa+eng');
                     const ret = await worker.recognize(croppedDataUrl);
                     await worker.terminate();
@@ -319,7 +327,6 @@
                     document.getElementById('campo-texto').value = textoExtraido;
                     document.getElementById('loading-status').innerText = "✅ ¡Texto extraído con éxito del recuadro!";
 
-                    // Marcar visualmente permanente el recuadro seleccionado
                     const wrapper = document.getElementById('canvas-wrapper');
                     const permBox = document.createElement('div');
                     permBox.className = 'user-selected-box';
