@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor OCR Masivo - Pestañas (Fotos y Selector de Cámara)</title>
+    <title>Extractor OCR Masivo - Rango 0 y Selector de Cámara</title>
     
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -254,8 +254,8 @@
 <body>
 
     <div class="container">
-        <h1>📸 Extractor OCR Multimodo</h1>
-        <p class="subtitle">Pestaña 1: Lote de fotos | Pestaña 2: Cámara en vivo con selector de dispositivo.</p>
+        <h1>📸 Extractor OCR Multimodo (Rango 0 + Cámara)</h1>
+        <p class="subtitle">Pestaña 1: Lote de fotos | Pestaña 2: Cámara en vivo con selección de dispositivo y Rango 0.</p>
 
         <div class="tabs-nav">
             <button class="tab-btn active" onclick="cambiarPestaña(1)">📂 Pestaña 1: Lote de Fotos</button>
@@ -267,7 +267,7 @@
         <!-- ========================================= -->
         <div id="tab-1" class="tab-content active">
             <div class="config-section">
-                <label for="num-rangos-1">Cantidad de recuadros a extraer (1 a 20):</label>
+                <label for="num-rangos-1">Cantidad de recuadros OCR (1 a 20):</label>
                 <input type="number" id="num-rangos-1" min="1" max="20" value="4" onchange="appFotos.actualizarCantidadRangos()">
                 <button class="btn btn-warning" onclick="appFotos.resetearConfiguracionRangos()" style="width: auto; margin:0; padding: 6px 12px; font-size: 13px;">Aplicar / Reiniciar</button>
             </div>
@@ -315,7 +315,7 @@
                 </div>
 
                 <div class="pane">
-                    <h3>2. Campos Extraídos</h3>
+                    <h3>2. Campos Extraídos (Rango 0 + OCR)</h3>
                     <div id="campos-container-1" class="campos-dinamicos-container"></div>
 
                     <button class="btn" onclick="appFotos.ejecutarProcesoYpasarSiguiente()">⚡ Ejecutar OCR y Siguiente Foto ➡️</button>
@@ -339,7 +339,7 @@
         <!-- ========================================= -->
         <div id="tab-2" class="tab-content">
             <div class="config-section">
-                <label for="num-rangos-2">Recuadros:</label>
+                <label for="num-rangos-2">Recuadros OCR:</label>
                 <input type="number" id="num-rangos-2" min="1" max="20" value="4" onchange="appCamara.actualizarCantidadRangos()">
                 
                 <label for="select-camara">Cámara:</label>
@@ -382,7 +382,7 @@
                 </div>
 
                 <div class="pane">
-                    <h3>2. Campos Extraídos</h3>
+                    <h3>2. Campos Extraídos (Rango 0 + OCR)</h3>
                     <div id="campos-container-2" class="campos-dinamicos-container"></div>
 
                     <button class="btn" onclick="appCamara.ejecutarProcesoCamara()">⚡ Ejecutar OCR de Cámara ➡️</button>
@@ -452,9 +452,8 @@
 
             async poblarListaCamaras() {
                 try {
-                    // Se requiere pedir permisos rápidos o listar dispositivos (navegadores requieren permisos previos para mostrar etiquetas de nombre)
                     await navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-                        stream.getTracks().forEach(track => track.stop()); // apagar de inmediato tras pedir permiso
+                        stream.getTracks().forEach(track => track.stop());
                     }).catch(e => console.log("Permiso de cámara inicial omitido o denegado:", e));
 
                     const dispositivos = await navigator.mediaDevices.enumerateDevices();
@@ -527,21 +526,28 @@
 
             generarCamposFormulario() {
                 const container = document.getElementById(`campos-container-${this.id}`);
-                container.innerHTML = '';
+                // Generar Rango 0 primero (para lectora o texto manual)
+                let html = `
+                    <div class="form-group" style="background: #eef9ff; padding: 6px; border-radius: 4px; border: 1px solid #bce8f1; margin-bottom: 12px;">
+                        <label style="color: #31708f;">📌 Rango 0 (Lectora / Texto Manual):</label>
+                        <input type="text" id="rango-${this.id}-0" placeholder="Escanea o escribe texto aquí..." style="font-weight: bold; color: #2980b9; border: 1px solid #3498db;">
+                    </div>
+                `;
                 for (let i = 1; i <= this.totalRangos; i++) {
-                    container.innerHTML += `
+                    html += `
                         <div class="form-group">
                             <label>Rango ${i}:</label>
                             <input type="text" id="rango-${this.id}-${i}" placeholder="Pendiente...">
                         </div>
                     `;
                 }
+                container.innerHTML = html;
             }
 
             actualizarTablaHeaders() {
                 const trHead = document.getElementById(`tabla-head-${this.id}`);
                 let tituloCol = this.esCamara ? 'Captura / Hora' : 'Archivo';
-                let html = `<th>${tituloCol}</th>`;
+                let html = `<th>${tituloCol}</th><th>R0</th>`;
                 for (let i = 1; i <= this.totalRangos; i++) {
                     html += `<th>R${i}</th>`;
                 }
@@ -602,12 +608,11 @@
 
             async iniciarCamara() {
                 try {
-                    this.apagarCamara(); // Cerrar flujo anterior si existe
+                    this.apagarCamara();
 
                     const selectCam = document.getElementById(`select-camara`);
                     const deviceIdSelected = selectCam.value;
 
-                    // Configurar restricciones basadas en el ID de la cámara seleccionada (frontal/trasera/externa)
                     const constraints = {
                         video: deviceIdSelected ? { deviceId: { exact: deviceIdSelected } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
                     };
@@ -621,7 +626,7 @@
                     this.configurarInteraccionCanvas();
                 } catch (err) {
                     console.error(err);
-                    alert("No se pudo iniciar la cámara seleccionada. Es posible que esté ocupada por otra aplicación o falten permisos.");
+                    alert("No se pudo iniciar la cámara seleccionada. Es posible que esté ocupada o falten permisos.");
                 }
             }
 
@@ -827,6 +832,7 @@
                 if (selBox) selBox.style.display = 'none';
                 if (zoomBox) zoomBox.style.display = 'none';
 
+                // Limpiar inputs OCR pero mantener o limpiar Rango 0 a gusto del usuario (aquí dejamos R0 intacto por si escanean en serie, o se puede limpiar si prefieren)
                 for(let i=1; i<=this.totalRangos; i++) {
                     const input = document.getElementById(`rango-${this.id}-${i}`);
                     if(input) input.value = '';
@@ -885,20 +891,26 @@
 
                     await worker.terminate();
 
-                    let rowData = { "Archivo": foto.name };
+                    const valR0 = document.getElementById(`rango-${this.id}-0`).value.trim();
+
+                    let rowData = { "Archivo": foto.name, "R0": valR0 };
                     for (let i = 0; i < this.totalRangos; i++) {
                         rowData[`R${i+1}`] = resultadosOCR[i];
                     }
                     this.tablaData.push(rowData);
 
                     const tbody = document.querySelector(`#tabla-datos-${this.id} tbody`);
-                    let trHtml = `<td>${foto.name}</td>`;
+                    let trHtml = `<td>${foto.name}</td><td>${valR0}</td>`;
                     for (let i = 0; i < this.totalRangos; i++) {
                         trHtml += `<td>${resultadosOCR[i]}</td>`;
                     }
                     const tr = document.createElement('tr');
                     tr.innerHTML = trHtml;
                     tbody.appendChild(tr);
+
+                    // Limpiar Rango 0 para el siguiente escaneo/lectura
+                    document.getElementById(`rango-${this.id}-0`).value = '';
+                    document.getElementById(`rango-${this.id}-0`).focus();
 
                     document.getElementById(`loading-status-${this.id}`).innerText = "✅ ¡Procesado con éxito! Pasando a la siguiente foto...";
 
@@ -971,21 +983,27 @@
 
                     await worker.terminate();
 
+                    const valR0 = document.getElementById(`rango-${this.id}-0`).value.trim();
                     const timestamp = new Date().toLocaleTimeString();
-                    let rowData = { "Captura / Hora": timestamp };
+                    
+                    let rowData = { "Captura / Hora": timestamp, "R0": valR0 };
                     for (let i = 0; i < this.totalRangos; i++) {
                         rowData[`R${i+1}`] = resultadosOCR[i];
                     }
                     this.tablaData.push(rowData);
 
                     const tbody = document.querySelector(`#tabla-datos-${this.id} tbody`);
-                    let trHtml = `<td>Captura ${timestamp}</td>`;
+                    let trHtml = `<td>Captura ${timestamp}</td><td>${valR0}</td>`;
                     for (let i = 0; i < this.totalRangos; i++) {
                         trHtml += `<td>${resultadosOCR[i]}</td>`;
                     }
                     const tr = document.createElement('tr');
                     tr.innerHTML = trHtml;
                     tbody.appendChild(tr);
+
+                    // Limpiar Rango 0 tras la captura para la siguiente lectura por lectora
+                    document.getElementById(`rango-${this.id}-0`).value = '';
+                    document.getElementById(`rango-${this.id}-0`).focus();
 
                     document.getElementById(`loading-status-${this.id}`).innerText = "✅ ¡OCR de cámara completado con éxito!";
 
