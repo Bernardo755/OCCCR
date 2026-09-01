@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor OCR Masivo - Rangos Dinámicos y Cámara Independiente</title>
+    <title>Extractor OCR Masivo - Rangos Dinámicos y Zoom</title>
     
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -20,7 +20,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 1300px;
+            max-width: 1350px;
             margin: 0 auto;
             background: white;
             padding: 25px;
@@ -31,8 +31,8 @@
         .subtitle { text-align: center; color: #7f8c8d; margin-bottom: 20px; }
 
         .config-section {
-            background: #eef2f7;
-            padding: 15px;
+            background: #eaf2f8;
+            padding: 12px 20px;
             border-radius: 8px;
             margin-bottom: 20px;
             display: flex;
@@ -40,9 +40,14 @@
             justify-content: center;
             gap: 15px;
         }
-        .config-section label { font-weight: bold; color: #2c3e50; font-size: 14px; }
+        .config-section label { font-weight: bold; color: #2980b9; }
         .config-section input[type="number"] {
-            width: 70px; padding: 6px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; text-align: center;
+            width: 70px;
+            padding: 6px;
+            font-size: 14px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            text-align: center;
         }
 
         .upload-section {
@@ -53,7 +58,7 @@
         }
         .upload-box {
             border: 2px dashed #3498db;
-            padding: 15px 20px;
+            padding: 15px 25px;
             text-align: center;
             border-radius: 8px;
             background-color: #ecf0f1;
@@ -84,31 +89,24 @@
         #image-scroll-container {
             position: relative;
             width: 100%;
-            height: 480px;
-            overflow: auto;
+            height: 550px;
+            overflow: hidden; /* Oculta lo que sale del contenedor para mantener el tamaño fijo */
             border: 2px solid #bdc3c7;
             background: #2c3e50;
             border-radius: 6px;
+            cursor: grab;
+        }
+        #image-scroll-container:active {
+            cursor: grabbing;
         }
         #canvas-wrapper {
-            position: relative;
-            display: inline-block;
-            cursor: crosshair;
+            position: absolute;
+            transform-origin: 0 0;
             user-select: none;
-            transform-origin: top left;
-            transition: transform 0.1s ease-out;
         }
         #preview-img {
             display: block;
-            max-width: none;
-            height: auto;
             pointer-events: none;
-        }
-        #live-video {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
         }
 
         .selection-box {
@@ -131,8 +129,8 @@
             left: 0;
             background: #2ecc71;
             color: white;
-            font-size: 11px;
-            padding: 1px 5px;
+            font-size: 10px;
+            padding: 1px 4px;
             font-weight: bold;
             border-radius: 3px;
         }
@@ -151,7 +149,7 @@
         }
 
         .form-group { margin-bottom: 8px; }
-        .form-group label { font-weight: bold; display: block; margin-bottom: 2px; font-size: 12px; }
+        label { font-weight: bold; display: block; margin-bottom: 2px; font-size: 12px; }
         input[type="text"] {
             width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 12px;
         }
@@ -166,85 +164,94 @@
         .btn-secondary:hover { background-color: #1f618d; }
         .btn-warning { background-color: #e67e22; }
         .btn-warning:hover { background-color: #d35400; }
-        .btn-danger { background-color: #c0392b; }
-        .btn-danger:hover { background-color: #a93226; }
 
         table {
             width: 100%; border-collapse: collapse; margin-top: 10px; background: white;
         }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; font-size: 11px; }
+        th, td { border: 1px solid #ddd; padding: 5px; text-align: left; font-size: 11px; }
         th { background-color: #f2f2f2; }
 
         #loading-status {
             text-align: center; font-weight: bold; color: #e67e22; margin: 8px 0; font-size: 14px;
+        }
+        
+        #campos-dinamicos-container {
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 5px;
+            border: 1px solid #eee;
+            background: #fff;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>📸 Extractor OCR Masivo (Rangos Dinámicos y Cámara Independiente)</h1>
-        <p class="subtitle">Configura cuántos campos deseas extraer, selecciona tu fuente y dibuja los recuadros en orden.</p>
+        <h1>📸 Extractor OCR Masivo (Rangos Dinámicos & Zoom)</h1>
+        <p class="subtitle">Configura cuántos recuadros necesitas, haz zoom/pan con el ratón en la imagen y dibuja los rangos secuencialmente.</p>
 
-        <!-- Configuración de Cantidad de Rangos -->
+        <!-- Configuración de cantidad de rangos -->
         <div class="config-section">
-            <label for="num-rangos">Número de rangos a extraer (1 a 20):</label>
-            <input type="number" id="num-rangos" min="1" max="20" value="4" onchange="actualizarTotalRangos()">
+            <label for="num-rangos">Cantidad de recuadros a extraer (1 a 20):</label>
+            <input type="number" id="num-rangos" min="1" max="20" value="4" onchange="actualizarCantidadRangos()">
+            <button class="btn btn-warning" onclick="resetearConfiguracionRangos()" style="width: auto; margin:0; padding: 6px 12px; font-size: 13px;">Aplicar / Reiniciar</button>
         </div>
 
-        <!-- Opciones de Entrada -->
+        <!-- Zona de Carga por Archivo o Carpeta -->
         <div class="upload-section">
             <div class="upload-box" onclick="document.getElementById('file-input').click()">
-                <p>📂 <strong>Subir Fotos</strong></p>
+                <p>📂 <strong>Subir Fotos Individuales</strong></p>
                 <input type="file" id="file-input" accept="image/*" multiple style="display: none;" onchange="cargarImagenes(event)">
             </div>
             <div class="upload-box" onclick="document.getElementById('folder-input').click()">
-                <p>📁 <strong>Subir Carpeta</strong></p>
+                <p>📁 <strong>Subir Carpeta Completa de Fotos</strong></p>
                 <input type="file" id="folder-input" accept="image/*" webkitdirectory directory multiple style="display: none;" onchange="cargarImagenes(event)">
-            </div>
-            <div class="upload-box" onclick="iniciarCamaraEnVivo()" style="border-color: #e67e22; background-color: #fef9e7;">
-                <p>📹 <strong>Cámara en Vivo</strong></p>
             </div>
         </div>
 
         <div class="queue-info" id="queue-banner" style="display:none;">
-            <span id="queue-text">Modo Activo</span>
+            <span id="queue-text">Foto 1 de 0 en la cola</span>
             <span id="current-filename" style="font-size: 12px; color: #2c3e50;"></span>
         </div>
 
-        <div id="loading-status">Configura los rangos y selecciona una fuente para comenzar.</div>
+        <div id="loading-status">Sube fotos o una carpeta para comenzar.</div>
 
         <div class="workspace">
-            <!-- Panel Izquierdo: Visualizador / Video -->
+            <!-- Panel Izquierdo: Imagen con Zoom, Pan y Recuadros -->
             <div class="pane">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h3 id="panel-title" style="margin:0; border:none;">Área de Trabajo (Rango <span id="active-box-label">1</span>/<span id="max-box-label">4</span>)</h3>
-                    <button class="btn btn-warning" onclick="reiniciarRecuadrosActuales()" style="margin:0; width:auto; padding: 5px 10px; font-size: 12px;">🔄 Reiniciar Recuadros</button>
+                    <h3 style="margin:0; border:none;">Imagen Actual (<span id="active-box-label">Rango 1</span>/<span id="total-box-label">4</span>)</h3>
+                    <div>
+                        <button class="btn btn-secondary" onclick="resetZoom()" style="margin:0; width:auto; padding: 4px 8px; font-size: 11px;">🔍 Reset Zoom</button>
+                        <button class="btn btn-warning" onclick="reiniciarRecuadrosActuales()" style="margin:0; width:auto; padding: 4px 8px; font-size: 11px;">🔄 Borrar Recuadros</button>
+                    </div>
                 </div>
                 <div id="image-scroll-container">
                     <div id="canvas-wrapper">
-                        <span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Sin fuente activa</span>
+                        <span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Sin imágenes cargadas</span>
                     </div>
                 </div>
-                <p style="font-size: 12px; color: #666; margin-top: 6px;">💡 Usa la rueda del mouse (Scroll) para hacer Zoom in/out y arrastra para dibujar.</p>
+                <p style="font-size: 11px; color: #666; margin-top: 6px;">💡 <b>Usa la rueda del ratón</b> para hacer Zoom. <b>Haz clic y arrastra</b> para moverte por la imagen. Dibuja los recuadros en orden.</p>
             </div>
 
-            <!-- Panel Derecho: Campos Dinámicos y Tabla -->
+            <!-- Panel Derecho: Campos dinámicos y Tabla -->
             <div class="pane">
                 <h3>2. Campos Extraídos</h3>
-                <div id="dinamic-inputs-container" style="max-height: 200px; overflow-y: auto; margin-bottom: 10px; padding-right: 5px;">
+                <div id="campos-dinamicos-container">
                     <!-- Se generan dinámicamente -->
                 </div>
 
-                <button class="btn" id="btn-ejecutar" onclick="ejecutarProceso()">⚡ Ejecutar OCR ➡️</button>
-                <button class="btn btn-danger" id="btn-detener-camara" onclick="apagarCamara()" style="display:none;">🔴 Apagar Cámara</button>
+                <button class="btn" onclick="ejecutarProcesoYpasarSiguiente()">⚡ Ejecutar OCR y Siguiente Foto ➡️</button>
 
                 <h3 style="margin-top: 15px;">3. Tabla Acumulada</h3>
-                <div style="overflow-x: auto; max-height: 150px;">
+                <div style="overflow-x: auto; max-height: 140px;">
                     <table id="tabla-datos">
                         <thead>
-                            <tr id="tabla-head-tr">
-                                <th>Fuente</th>
+                            <tr id="tabla-head-row">
+                                <th>Archivo</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -258,39 +265,43 @@
     </div>
 
     <script>
-        let totalRangos = 4;
         let listaImagenes = [];
         let indiceActual = 0;
         let tablaData = [];
-        let fuenteActiva = null; // 'galeria' o 'camara'
-        
-        let mediaStream = null;
-        let videoElement = null;
         let imgElement = null;
         
+        let totalRangos = 4;
+        let recuadrosActuales = []; 
+        let currentSelectionBox = null;
+
+        // Variables para Control de Zoom y Pan (Arrastre)
+        let scale = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDraggingImage = false;
+        let startPanX = 0, startPanY = 0;
         let isDrawing = false;
         let startX = 0, startY = 0;
-        let recuadrosActuales = [];
-        let currentSelectionBox = null;
-        let zoomScale = 1;
 
-        window.onload = function() {
-            actualizarTotalRangos();
-        };
+        function actualizarCantidadRangos() {
+            let val = parseInt(document.getElementById('num-rangos').value);
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 20) val = 20;
+            document.getElementById('num-rangos').value = val;
+            totalRangos = val;
+            document.getElementById('total-box-label').innerText = totalRangos;
+            
+            generarCamposFormulario();
+            actualizarTablaHeaders();
+            reiniciarRecuadrosActuales();
+        }
 
-        function actualizarTotalRangos() {
-            const inputVal = parseInt(document.getElementById('num-rangos').value);
-            if (isNaN(inputVal) || inputVal < 1) {
-                totalRangos = 1;
-            } else if (inputVal > 20) {
-                totalRangos = 20;
-            } else {
-                totalRangos = inputVal;
-            }
-            document.getElementById('num-rangos').value = totalRangos;
-            document.getElementById('max-box-label').innerText = totalRangos;
+        function resetearConfiguracionRangos() {
+            actualizarCantidadRangos();
+        }
 
-            const container = document.getElementById('dinamic-inputs-container');
+        function generarCamposFormulario() {
+            const container = document.getElementById('campos-dinamicos-container');
             container.innerHTML = '';
             for (let i = 1; i <= totalRangos; i++) {
                 container.innerHTML += `
@@ -300,32 +311,25 @@
                     </div>
                 `;
             }
-
-            const trHead = document.getElementById('tabla-head-tr');
-            let ths = '<th>Fuente</th>';
-            for (let i = 1; i <= totalRangos; i++) {
-                ths += `<th>R${i}</th>`;
-            }
-            trHead.innerHTML = ths;
-            tablaData = [];
-            document.querySelector('#tabla-datos tbody').innerHTML = '';
-            reiniciarRecuadrosActuales();
         }
 
-        function detenerFlujosPrevios() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
+        function actualizarTablaHeaders() {
+            const trHead = document.getElementById('tabla-head-row');
+            let html = '<th>Archivo</th>';
+            for (let i = 1; i <= totalRangos; i++) {
+                html += `<th>R${i}</th>`;
             }
+            trHead.innerHTML = html;
+        }
+
+        // Inicializar al cargar la página
+        window.onload = function() {
+            actualizarCantidadRangos();
         }
 
         function cargarImagenes(event) {
-            detenerFlujosPrevios();
             const files = Array.from(event.target.files).filter(file => file.type.startsWith('image/'));
             if (files.length === 0) return;
-
-            fuenteActiva = 'galeria';
-            document.getElementById('btn-detener-camara').style.display = 'none';
 
             listaImagenes = [];
             let cargados = 0;
@@ -354,9 +358,6 @@
 
             const foto = listaImagenes[indiceActual];
             const wrapper = document.getElementById('canvas-wrapper');
-            zoomScale = 1;
-            wrapper.style.transform = `scale(${zoomScale})`;
-            
             wrapper.innerHTML = `
                 <img id="preview-img" src="${foto.src}" alt="${foto.name}">
                 <div id="selection-box" class="selection-box"></div>
@@ -366,391 +367,268 @@
             document.getElementById('queue-text').innerText = `Foto ${indiceActual + 1} de ${listaImagenes.length}`;
             document.getElementById('current-filename').innerText = `📁 ${foto.name}`;
             document.getElementById('loading-status').innerText = `✅ Dibuja el Rango 1 de ${totalRangos}.`;
-            document.getElementById('panel-title').innerText = "Imagen Actual";
 
             imgElement = document.getElementById('preview-img');
             currentSelectionBox = document.getElementById('selection-box');
             recuadrosActuales = [];
             actualizarUIformulario();
-            limpiarInputsFormulario();
 
             imgElement.onload = function() {
-                configurarEventosGaleria();
+                resetZoom();
+                configurarInteraccionCanvas();
             };
-            if (imgElement.complete) {
-                configurarEventosGaleria();
+        }
+
+        function resetZoom() {
+            scale = 1;
+            panX = 0;
+            panY = 0;
+            actualizarTransformacionCanvas();
+        }
+
+        function actualizarTransformacionCanvas() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            if(wrapper) {
+                wrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
             }
         }
 
-        async function iniciarCamaraEnVivo() {
-            detenerFlujosPrevios();
-            fuenteActiva = 'camara';
-            zoomScale = 1;
-
+        function configurarInteraccionCanvas() {
+            const container = document.getElementById('image-scroll-container');
             const wrapper = document.getElementById('canvas-wrapper');
-            wrapper.style.transform = `scale(${zoomScale})`;
-            wrapper.innerHTML = `
-                <video id="live-video" autoplay playsinline></video>
-                <div id="selection-box" class="selection-box"></div>
-            `;
 
-            videoElement = document.getElementById('live-video');
-            currentSelectionBox = document.getElementById('selection-box');
-            recuadrosActuales = [];
-            actualizarUIformulario();
-            limpiarInputsFormulario();
+            // Zoom con la rueda del ratón hacia el cursor
+            container.onwheel = function(e) {
+                e.preventDefault();
+                if (!imgElement) return;
 
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' } 
-                });
-                videoElement.srcObject = mediaStream;
-                
-                document.getElementById('queue-banner').style.display = 'flex';
-                document.getElementById('queue-text').innerText = `📹 Transmisión en Vivo`;
-                document.getElementById('current-filename').innerText = `Cámara Activa`;
-                document.getElementById('loading-status').innerText = `✅ Dibuja el Rango 1 de ${totalRangos} sobre el video en vivo.`;
-                document.getElementById('panel-title').innerText = "Cámara en Tiempo Real";
-                document.getElementById('btn-detener-camara').style.display = 'block';
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
 
-                configurarEventosCamara();
-            } catch (err) {
-                console.error(err);
-                alert("No se pudo acceder a la cámara. Revisa los permisos del navegador.");
-                document.getElementById('loading-status').innerText = "❌ Error al iniciar la cámara.";
+                const zoomFactor = 1.1;
+                let oldScale = scale;
+
+                if (e.deltaY < 0) {
+                    scale *= zoomFactor;
+                } else {
+                    scale /= zoomFactor;
+                }
+
+                scale = Math.max(0.5, Math.min(scale, 10)); // Límites de zoom
+
+                // Ajustar pan para hacer zoom centrado en el puntero del mouse
+                panX = mouseX - (mouseX - panX) * (scale / oldScale);
+                panY = mouseY - (mouseY - panY) * (scale / oldScale);
+
+                actualizarTransformacionCanvas();
+            };
+
+            // Controles de Mouse (Click derecho o Shift+Click o Botón central para arrastrar, Clic izquierdo normal para dibujar)
+            container.onmousedown = function(e) {
+                if (!imgElement) return;
+
+                // Si se presiona el botón central (1) o Shift + Click izquierdo, se mueve la imagen (Pan)
+                if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+                    isDraggingImage = true;
+                    startPanX = e.clientX - panX;
+                    startPanY = e.clientY - panY;
+                    e.preventDefault();
+                    return;
+                }
+
+                // Dibujar recuadro con Click Izquierdo normal
+                if (e.button === 0) {
+                    if (recuadrosActuales.length >= totalRangos) {
+                        alert(`Ya has seleccionado los ${totalRangos} recuadros. Pulsa "Ejecutar OCR".`);
+                        return;
+                    }
+
+                    const rect = wrapper.getBoundingClientRect();
+                    // Coordenadas relativas dentro del wrapper escalado
+                    startX = (e.clientX - rect.left) / scale;
+                    startY = (e.clientY - rect.top) / scale;
+                    isDrawing = true;
+
+                    currentSelectionBox.style.left = startX + 'px';
+                    currentSelectionBox.style.top = startY + 'px';
+                    currentSelectionBox.style.width = '0px';
+                    currentSelectionBox.style.height = '0px';
+                    currentSelectionBox.style.display = 'block';
+
+                    document.addEventListener('mousemove', onMouseMoveGlobal);
+                    document.addEventListener('mouseup', onMouseUpGlobal);
+                    e.preventDefault();
+                }
+            };
+
+            function onMouseMoveGlobal(e) {
+                if (isDraggingImage) {
+                    panX = e.clientX - startPanX;
+                    panY = e.clientY - startPanY;
+                    actualizarTransformacionCanvas();
+                    return;
+                }
+
+                if (!isDrawing) return;
+                const rect = wrapper.getBoundingClientRect();
+                let currentX = (e.clientX - rect.left) / scale;
+                let currentY = (e.clientY - rect.top) / scale;
+
+                const width = currentX - startX;
+                const height = currentY - startY;
+
+                currentSelectionBox.style.width = Math.abs(width) + 'px';
+                currentSelectionBox.style.height = Math.abs(height) + 'px';
+                currentSelectionBox.style.left = (width < 0 ? currentX : startX) + 'px';
+                currentSelectionBox.style.top = (height < 0 ? currentY : startY) + 'px';
             }
-        }
 
-        function apagarCamara() {
-            detenerFlujosPrevios();
-            const wrapper = document.getElementById('canvas-wrapper');
-            wrapper.innerHTML = `<span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Cámara apagada</span>`;
-            document.getElementById('queue-banner').style.display = 'none';
-            document.getElementById('btn-detener-camara').style.display = 'none';
-            document.getElementById('loading-status').innerText = "🛑 Cámara apagada.";
-        }
-
-        function configurarEventosGaleria() {
-            const wrapper = document.getElementById('canvas-wrapper');
-            const scrollContainer = document.getElementById('image-scroll-container');
-            if (!wrapper) return;
-
-            // Zoom con la rueda del ratón
-            scrollContainer.onwheel = function(e) {
-                e.preventDefault();
-                const zoomIntensity = 0.1;
-                if (e.deltaY < 0) {
-                    zoomScale += zoomIntensity;
-                } else {
-                    zoomScale = Math.max(0.5, zoomScale - zoomIntensity);
-                }
-                wrapper.style.transform = `scale(${zoomScale})`;
-            };
-
-            wrapper.onmousedown = function(e) {
-                if (!imgElement || recuadrosActuales.length >= totalRangos) {
-                    if (recuadrosActuales.length >= totalRangos) alert(`Ya has seleccionado los ${totalRangos} recuadros.`);
-                    return;
+            function onMouseUpGlobal(e) {
+                if (isDraggingImage) {
+                    isDraggingImage = false;
                 }
 
-                const rect = wrapper.getBoundingClientRect();
-                // Coordenadas escaladas por el zoom actual
-                startX = (e.clientX - rect.left) / zoomScale;
-                startY = (e.clientY - rect.top) / zoomScale;
-                isDrawing = true;
+                if (!isDrawing) return;
+                isDrawing = false;
+                document.removeEventListener('mousemove', onMouseMoveGlobal);
+                document.removeEventListener('mouseup', onMouseUpGlobal);
 
-                currentSelectionBox.style.left = startX + 'px';
-                currentSelectionBox.style.top = startY + 'px';
-                currentSelectionBox.style.width = '0px';
-                currentSelectionBox.style.height = '0px';
-                currentSelectionBox.style.display = 'block';
+                const width = parseFloat(currentSelectionBox.style.width);
+                const height = parseFloat(currentSelectionBox.style.height);
 
-                document.onmousemove = function(e) {
-                    if (!isDrawing) return;
-                    let currentX = (e.clientX - rect.left) / zoomScale;
-                    let currentY = (e.clientY - rect.top) / zoomScale;
+                if (width > 3 && height > 3) {
+                    const boxData = {
+                        left: parseFloat(currentSelectionBox.style.left),
+                        top: parseFloat(currentSelectionBox.style.top),
+                        width: width,
+                        height: height
+                    };
 
-                    const width = currentX - startX;
-                    const height = currentY - startY;
+                    recuadrosActuales.push(boxData);
+                    currentSelectionBox.style.display = 'none';
 
-                    currentSelectionBox.style.width = Math.abs(width) + 'px';
-                    currentSelectionBox.style.height = Math.abs(height) + 'px';
-                    currentSelectionBox.style.left = (width < 0 ? currentX : startX) + 'px';
-                    currentSelectionBox.style.top = (height < 0 ? currentY : startY) + 'px';
-                };
+                    // Crear caja permanente verde
+                    const permBox = document.createElement('div');
+                    permBox.className = 'saved-box';
+                    permBox.style.left = boxData.left + 'px';
+                    permBox.style.top = boxData.top + 'px';
+                    permBox.style.width = boxData.width + 'px';
+                    permBox.style.height = boxData.height + 'px';
+                    permBox.innerHTML = `<span>R${recuadrosActuales.length}</span>`;
+                    wrapper.appendChild(permBox);
 
-                document.onmouseup = function() {
-                    if (!isDrawing) return;
-                    isDrawing = false;
-                    document.onmousemove = null;
-                    document.onmouseup = null;
+                    actualizarUIformulario();
 
-                    const width = parseInt(currentSelectionBox.style.width);
-                    const height = parseInt(currentSelectionBox.style.height);
-
-                    if (width > 5 && height > 5) {
-                        const boxData = {
-                            left: currentSelectionBox.style.left,
-                            top: currentSelectionBox.style.top,
-                            width: currentSelectionBox.style.width,
-                            height: currentSelectionBox.style.height
-                        };
-
-                        recuadrosActuales.push(boxData);
-                        currentSelectionBox.style.display = 'none';
-
-                        const permBox = document.createElement('div');
-                        permBox.className = 'saved-box';
-                        permBox.style.left = boxData.left;
-                        permBox.style.top = boxData.top;
-                        permBox.style.width = boxData.width;
-                        permBox.style.height = boxData.height;
-                        permBox.innerHTML = `<span>R${recuadrosActuales.length}</span>`;
-                        wrapper.appendChild(permBox);
-
-                        actualizarUIformulario();
-
-                        if (recuadrosActuales.length < totalRangos) {
-                            document.getElementById('loading-status').innerText = `✅ Rango ${recuadrosActuales.length} guardado. Dibuja el Rango ${recuadrosActuales.length + 1}.`;
-                        } else {
-                            document.getElementById('loading-status').innerText = `🎉 ¡Los ${totalRangos} recuadros están listos! Pulsa "Ejecutar OCR".`;
-                        }
+                    if (recuadrosActuales.length < totalRangos) {
+                        document.getElementById('loading-status').innerText = `✅ Rango ${recuadrosActuales.length} guardado. Dibuja el Rango ${recuadrosActuales.length + 1}.`;
                     } else {
-                        currentSelectionBox.style.display = 'none';
+                        document.getElementById('loading-status').innerText = `🎉 ¡${totalRangos} recuadros listos! Pulsa "Ejecutar OCR".`;
                     }
-                };
-
-                e.preventDefault();
-            };
-        }
-
-        function configurarEventosCamara() {
-            const wrapper = document.getElementById('canvas-wrapper');
-            const scrollContainer = document.getElementById('image-scroll-container');
-            if (!wrapper) return;
-
-            scrollContainer.onwheel = function(e) {
-                e.preventDefault();
-                const zoomIntensity = 0.1;
-                if (e.deltaY < 0) {
-                    zoomScale += zoomIntensity;
-                } else {
-                    zoomScale = Math.max(0.5, zoomScale - zoomIntensity);
                 }
-                wrapper.style.transform = `scale(${zoomScale})`;
-            };
-
-            wrapper.onmousedown = function(e) {
-                if (!videoElement || recuadrosActuales.length >= totalRangos) {
-                    if (recuadrosActuales.length >= totalRangos) alert(`Ya has seleccionado los ${totalRangos} recuadros.`);
-                    return;
-                }
-
-                const rect = wrapper.getBoundingClientRect();
-                startX = (e.clientX - rect.left) / zoomScale;
-                startY = (e.clientY - rect.top) / zoomScale;
-                isDrawing = true;
-
-                currentSelectionBox.style.left = startX + 'px';
-                currentSelectionBox.style.top = startY + 'px';
-                currentSelectionBox.style.width = '0px';
-                currentSelectionBox.style.height = '0px';
-                currentSelectionBox.style.display = 'block';
-
-                document.onmousemove = function(e) {
-                    if (!isDrawing) return;
-                    let currentX = (e.clientX - rect.left) / zoomScale;
-                    let currentY = (e.clientY - rect.top) / zoomScale;
-
-                    const width = currentX - startX;
-                    const height = currentY - startY;
-
-                    currentSelectionBox.style.width = Math.abs(width) + 'px';
-                    currentSelectionBox.style.height = Math.abs(height) + 'px';
-                    currentSelectionBox.style.left = (width < 0 ? currentX : startX) + 'px';
-                    currentSelectionBox.style.top = (height < 0 ? currentY : startY) + 'px';
-                };
-
-                document.onmouseup = function() {
-                    if (!isDrawing) return;
-                    isDrawing = false;
-                    document.onmousemove = null;
-                    document.onmouseup = null;
-
-                    const width = parseInt(currentSelectionBox.style.width);
-                    const height = parseInt(currentSelectionBox.style.height);
-
-                    if (width > 5 && height > 5) {
-                        const boxData = {
-                            left: currentSelectionBox.style.left,
-                            top: currentSelectionBox.style.top,
-                            width: currentSelectionBox.style.width,
-                            height: currentSelectionBox.style.height
-                        };
-
-                        recuadrosActuales.push(boxData);
-                        currentSelectionBox.style.display = 'none';
-
-                        const permBox = document.createElement('div');
-                        permBox.className = 'saved-box';
-                        permBox.style.left = boxData.left;
-                        permBox.style.top = boxData.top;
-                        permBox.style.width = boxData.width;
-                        permBox.style.height = boxData.height;
-                        permBox.innerHTML = `<span>R${recuadrosActuales.length}</span>`;
-                        wrapper.appendChild(permBox);
-
-                        actualizarUIformulario();
-
-                        if (recuadrosActuales.length < totalRangos) {
-                            document.getElementById('loading-status').innerText = `✅ Rango ${recuadrosActuales.length} guardado. Dibuja el Rango ${recuadrosActuales.length + 1}.`;
-                        } else {
-                            document.getElementById('loading-status').innerText = `🎉 ¡Los ${totalRangos} recuadros están listos! Pulsa "Ejecutar OCR".`;
-                        }
-                    } else {
-                        currentSelectionBox.style.display = 'none';
-                    }
-                };
-
-                e.preventDefault();
-            };
+            }
         }
 
         function actualizarUIformulario() {
             document.getElementById('active-box-label').innerText = Math.min(recuadrosActuales.length + 1, totalRangos);
         }
 
-        function limpiarInputsFormulario() {
-            for(let i=1; i<=totalRangos; i++) {
-                const el = document.getElementById(`rango-${i}`);
-                if(el) el.value = '';
-            }
-        }
-
         function reiniciarRecuadrosActuales() {
             document.querySelectorAll('.saved-box').forEach(el => el.remove());
             recuadrosActuales = [];
             if (currentSelectionBox) currentSelectionBox.style.display = 'none';
-            limpiarInputsFormulario();
-            document.getElementById('loading-status').innerText = "🔄 Recuadros reiniciados. Dibuja el Rango 1.";
+            for(let i=1; i<=totalRangos; i++) {
+                const input = document.getElementById(`rango-${i}`);
+                if(input) input.value = '';
+            }
+            if(listaImagenes.length > 0) {
+                document.getElementById('loading-status').innerText = "🔄 Recuadros reiniciados. Dibuja el Rango 1.";
+            }
             actualizarUIformulario();
         }
 
-        async function ejecutarProceso() {
+        async function ejecutarProcesoYpasarSiguiente() {
             if (recuadrosActuales.length < totalRangos) {
                 alert(`Debes seleccionar exactamente los ${totalRangos} recuadros antes de ejecutar el proceso.`);
                 return;
             }
 
+            const foto = listaImagenes[indiceActual];
             document.getElementById('loading-status').innerText = "⏳ Ejecutando OCR en los recuadros...";
+
+            const scaleX = imgElement.naturalWidth / imgElement.width;
+            const scaleY = imgElement.naturalHeight / imgElement.height;
+
             let resultadosOCR = new Array(totalRangos).fill('');
-            let nombreFuente = "";
 
             try {
                 const worker = await Tesseract.createWorker('spa+eng');
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
 
-                if (fuenteActiva === 'galeria') {
-                    const foto = listaImagenes[indiceActual];
-                    nombreFuente = foto.name;
-                    const scaleX = imgElement.naturalWidth / imgElement.clientWidth;
-                    const scaleY = imgElement.naturalHeight / imgElement.clientHeight;
+                for (let i = 0; i < totalRangos; i++) {
+                    const b = recuadrosActuales[i];
+                    const x = b.left * scaleX;
+                    const y = b.top * scaleY;
+                    const w = b.width * scaleX;
+                    const h = b.height * scaleY;
 
-                    for (let i = 0; i < totalRangos; i++) {
-                        const b = recuadrosActuales[i];
-                        const x = parseInt(b.left) * scaleX;
-                        const y = parseInt(b.top) * scaleY;
-                        const w = parseInt(b.width) * scaleX;
-                        const h = parseInt(b.height) * scaleY;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
 
-                        canvas.width = w;
-                        canvas.height = h;
+                    const imageObj = new Image();
+                    imageObj.src = foto.src;
+                    
+                    const textoRecorte = await new Promise((resolve) => {
+                        imageObj.onload = async function() {
+                            ctx.drawImage(imageObj, x, y, w, h, 0, 0, w, h);
+                            const croppedDataUrl = canvas.toDataURL('image/png');
+                            const ret = await worker.recognize(croppedDataUrl);
+                            let texto = ret.data.text.trim();
+                            texto = texto.replace(/\s*@\s*/g, '@');
+                            texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
+                            resolve(texto);
+                        };
+                    });
 
-                        const imageObj = new Image();
-                        imageObj.src = foto.src;
-                        
-                        const textoRecorte = await new Promise((resolve) => {
-                            imageObj.onload = async function() {
-                                ctx.drawImage(imageObj, x, y, w, h, 0, 0, w, h);
-                                const croppedDataUrl = canvas.toDataURL('image/png');
-                                const ret = await worker.recognize(croppedDataUrl);
-                                let texto = ret.data.text.trim();
-                                texto = texto.replace(/\s*@\s*/g, '@');
-                                texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
-                                resolve(texto);
-                            };
-                        });
-                        resultadosOCR[i] = textoRecorte;
-                        document.getElementById(`rango-${i+1}`).value = textoRecorte;
-                    }
-
-                } else if (fuenteActiva === 'camara') {
-                    nombreFuente = "Cámara en Vivo (" + new Date().toLocaleTimeString() + ")";
-                    const scaleX = videoElement.videoWidth / videoElement.clientWidth;
-                    const scaleY = videoElement.videoHeight / videoElement.clientHeight;
-
-                    for (let i = 0; i < totalRangos; i++) {
-                        const b = recuadrosActuales[i];
-                        const x = parseInt(b.left) * scaleX;
-                        const y = parseInt(b.top) * scaleY;
-                        const w = parseInt(b.width) * scaleX;
-                        const h = parseInt(b.height) * scaleY;
-
-                        canvas.width = w;
-                        canvas.height = h;
-
-                        ctx.clearRect(0, 0, w, h);
-                        ctx.drawImage(videoElement, x, y, w, h, 0, 0, w, h);
-                        const croppedDataUrl = canvas.toDataURL('image/png');
-                        const ret = await worker.recognize(croppedDataUrl);
-                        let texto = ret.data.text.trim();
-                        texto = texto.replace(/\s*@\s*/g, '@');
-                        texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2');
-
-                        resultadosOCR[i] = texto;
-                        document.getElementById(`rango-${i+1}`).value = texto;
-                    }
+                    resultadosOCR[i] = textoRecorte;
+                    document.getElementById(`rango-${i+1}`).value = textoRecorte;
                 }
 
                 await worker.terminate();
 
-                let filaData = { "Fuente": nombreFuente };
+                // Guardar en estructura de datos para la tabla
+                let rowData = { "Archivo": foto.name };
                 for (let i = 0; i < totalRangos; i++) {
-                    filaData[`R${i+1}`] = resultadosOCR[i];
+                    rowData[`R${i+1}`] = resultadosOCR[i];
                 }
-                tablaData.push(filaData);
+                tablaData.push(rowData);
 
+                // Agregar fila a la tabla visual
                 const tbody = document.querySelector('#tabla-datos tbody');
-                let trHTML = `<td>${nombreFuente}</td>`;
+                let trHtml = `<td>${foto.name}</td>`;
                 for (let i = 0; i < totalRangos; i++) {
-                    trHTML += `<td>${resultadosOCR[i]}</td>`;
+                    trHtml += `<td>${resultadosOCR[i]}</td>`;
                 }
                 const tr = document.createElement('tr');
-                tr.innerHTML = trHTML;
+                tr.innerHTML = trHtml;
                 tbody.appendChild(tr);
 
-                document.getElementById('loading-status').innerText = "✅ ¡Procesado con éxito!";
+                document.getElementById('loading-status').innerText = "✅ ¡Procesado con éxito! Pasando a la siguiente foto...";
 
-                if (fuenteActiva === 'galeria') {
-                    setTimeout(() => {
-                        indiceActual++;
-                        if (indiceActual < listaImagenes.length) {
-                            mostrarFotoActual();
-                        } else {
-                            alert("¡Has terminado de procesar todas las fotos de la lista!");
-                            document.getElementById('loading-status').innerText = "🏁 ¡Lote de fotos completado!";
-                        }
-                    }, 1000);
-                } else if (fuenteActiva === 'camara') {
-                    setTimeout(() => {
-                        document.getElementById('loading-status').innerText = "📹 Cámara lista para la siguiente captura. Borra o dibuja nuevos recuadros.";
-                    }, 500);
-                }
+                setTimeout(() => {
+                    indiceActual++;
+                    if (indiceActual < listaImagenes.length) {
+                        mostrarFotoActual();
+                    } else {
+                        alert("¡Has terminado de procesar todas las fotos de la lista/carpeta!");
+                        document.getElementById('loading-status').innerText = "🏁 ¡Lote completado!";
+                    }
+                }, 1000);
 
             } catch (err) {
                 console.error(err);
-                document.getElementById('loading-status').innerText = "❌ Error al ejecutar el OCR.";
+                document.getElementById('loading-status').innerText = "❌ Error al ejecutar el OCR masivo.";
             }
         }
 
@@ -761,8 +639,8 @@
             }
             const worksheet = XLSX.utils.json_to_sheet(tablaData);
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "OCR_Dinamico");
-            XLSX.writeFile(workbook, "Datos_OCR_Dinamico.xlsx");
+            XLSX.utils.book_append_sheet(workbook, worksheet, "OCR_Masivo");
+            XLSX.writeFile(workbook, "Datos_OCR_Masivo.xlsx");
         }
     </script>
 </body>
