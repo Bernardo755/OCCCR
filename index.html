@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR Inteligente en Python & HTML (WebAssembly)</title>
+    <title>OCR Inteligente con Selección Libre y Zoom</title>
     
-    <!-- PyScript CSS & JS (Ejecuta Python en el navegador) -->
+    <!-- PyScript para entorno de Python -->
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
 
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
-    <!-- Tesseract.js para OCR rápido en cliente y robusto -->
+    <!-- Tesseract.js para OCR -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
     <style>
@@ -24,7 +24,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             padding: 30px;
@@ -36,7 +36,7 @@
 
         .upload-section {
             border: 2px dashed #3498db;
-            padding: 25px;
+            padding: 20px;
             text-align: center;
             border-radius: 8px;
             background-color: #ecf0f1;
@@ -48,11 +48,11 @@
 
         .workspace {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 2fr 1fr;
             gap: 20px;
             margin-top: 20px;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
             .workspace { grid-template-columns: 1fr; }
         }
 
@@ -65,34 +65,45 @@
         }
         .pane h3 { margin-top: 0; color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 8px; }
 
-        #image-container {
+        /* Contenedor grande de la imagen con scroll para hacerla más grande */
+        #image-scroll-container {
             position: relative;
-            max-width: 100%;
-            overflow: hidden;
+            width: 100%;
+            height: 550px;
+            overflow: auto;
+            border: 2px solid #bdc3c7;
+            background: #2c3e50;
             border-radius: 6px;
-            background: #000;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 250px;
         }
-        #preview-img {
-            max-width: 100%;
-            height: auto;
-            display: block;
+        #canvas-wrapper {
+            position: relative;
+            display: inline-block;
             cursor: crosshair;
         }
+        #preview-img {
+            display: block;
+            max-width: none;
+            height: auto;
+        }
 
-        /* Recuadros de selección detectados automáticamente */
-        .ocr-box {
+        /* Capa de selección manual con el ratón */
+        #selection-box {
             position: absolute;
             border: 2px dashed #e74c3c;
-            background: rgba(231, 76, 60, 0.2);
-            cursor: pointer;
-            transition: 0.2s;
+            background: rgba(231, 76, 60, 0.3);
+            display: none;
+            pointer-events: none;
         }
-        .ocr-box:hover { background: rgba(46, 204, 113, 0.4); border-color: #2ecc71; }
-        .ocr-box.selected { background: rgba(46, 204, 113, 0.5); border: 2px solid #2ecc71; }
+
+        /* Recuadros ya seleccionados */
+        .user-selected-box {
+            position: absolute;
+            border: 2px solid #2ecc71;
+            background: rgba(46, 204, 113, 0.35);
+        }
 
         .form-group { margin-bottom: 12px; }
         label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 14px; }
@@ -108,6 +119,8 @@
         .btn:hover { background-color: #219653; }
         .btn-secondary { background-color: #2980b9; }
         .btn-secondary:hover { background-color: #1f618d; }
+        .btn-warning { background-color: #e67e22; }
+        .btn-warning:hover { background-color: #d35400; }
 
         table {
             width: 100%; border-collapse: collapse; margin-top: 15px; background: white;
@@ -116,61 +129,59 @@
         th { background-color: #f2f2f2; }
 
         #loading-status {
-            text-align: center; font-weight: bold; color: #e67e22; margin: 10px 0;
+            text-align: center; font-weight: bold; color: #e67e22; margin: 10px 0; font-size: 15px;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>📸 Extractor OCR Inteligente (Python + WebAssembly)</h1>
-        <p class="subtitle">Sube una foto o factura. El sistema detectará automáticamente los campos y podrás seleccionarlos para guardarlos en Excel.</p>
+        <h1>📸 Extractor OCR con Ampliación y Selección Libre</h1>
+        <p class="subtitle">Sube tu imagen, arrastra el ratón sobre cualquier parte de la foto grande para recortarla y extraer su texto automáticamente.</p>
 
         <!-- Zona de Carga -->
         <div class="upload-section" onclick="document.getElementById('file-input').click()">
-            <p>📂 <strong>Haz clic aquí para subir una imagen</strong> o arrástrala</p>
+            <p>📂 <strong>Haz clic aquí para cambiar o subir una imagen</strong></p>
             <input type="file" id="file-input" accept="image/*" style="display: none;" onchange="cargarImagen(event)">
         </div>
 
-        <div id="loading-status"></div>
+        <div id="loading-status">Sube una imagen para comenzar.</div>
 
         <div class="workspace">
-            <!-- Panel Izquierdo: Vista previa y recuadros automáticos -->
+            <!-- Panel Izquierdo: Imagen Ampliada con Selección Manual -->
             <div class="pane">
-                <h3>1. Imagen y Recuadros Detectados</h3>
-                <div id="image-container">
-                    <span style="color: #aaa;">Sube una imagen para comenzar</span>
+                <h3>1. Imagen Ampliada (Arrastra para seleccionar área de OCR)</h3>
+                <div id="image-scroll-container">
+                    <div id="canvas-wrapper">
+                        <span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Sin imagen cargada</span>
+                    </div>
                 </div>
-                <p style="font-size: 12px; color: #666; margin-top: 8px;">💡 Haz clic en los recuadros rojos sobre la imagen para agregarlos a la extracción, o arrastra para crear uno nuevo.</p>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="btn btn-warning" onclick="limpiarSelecciones()" style="margin-top:0;">🗑️ Limpiar Recuadros</button>
+                    <button class="btn btn-secondary" onclick="procesarSeleccionActual()" style="margin-top:0;">🔍 Aplicar OCR al Área Seleccionada</button>
+                </div>
             </div>
 
-            <!-- Panel Derecho: Campos Extraídos y Tabla Excel -->
+            <!-- Panel Derecho: Resultados y Excel -->
             <div class="pane">
-                <h3>2. Campos Identificados y Extraídos</h3>
-                <div id="fields-form">
-                    <div class="form-group">
-                        <label>Campo 1 (Ej. Total / Importe):</label>
-                        <input type="text" id="campo-1" placeholder="Se llenará con OCR...">
-                    </div>
-                    <div class="form-group">
-                        <label>Campo 2 (Ej. Fecha / Folio):</label>
-                        <input type="text" id="campo-2" placeholder="Se llenará con OCR...">
-                    </div>
-                    <div class="form-group">
-                        <label>Campo 3 (Ej. Concepto / Nombre):</label>
-                        <input type="text" id="campo-3" placeholder="Se llenará con OCR...">
-                    </div>
+                <h3>2. Datos Extraídos</h3>
+                <div class="form-group">
+                    <label>Texto Extraído de la Selección:</label>
+                    <input type="text" id="campo-texto" placeholder="Selecciona un recuadro en la foto...">
+                </div>
+                <div class="form-group">
+                    <label>Asignar a Columna / Categoría:</label>
+                    <input type="text" id="campo-categoria" placeholder="Ej. Producto, Total, Fecha...">
                 </div>
                 <button class="btn" onclick="agregarFilaExcel()">➕ Agregar a la Tabla</button>
 
-                <h3 style="margin-top: 25px;">3. Tabla Acumulada</h3>
-                <div style="overflow-x: auto; max-height: 200px;">
+                <h3 style="margin-top: 20px;">3. Tabla Acumulada</h3>
+                <div style="overflow-x: auto; max-height: 180px;">
                     <table id="tabla-datos">
                         <thead>
                             <tr>
-                                <th>Campo 1</th>
-                                <th>Campo 2</th>
-                                <th>Campo 3</th>
+                                <th>Categoría</th>
+                                <th>Texto Extraído</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -183,21 +194,12 @@
         </div>
     </div>
 
-    <!-- Configuración de PyScript con librerías de Python (Pillow / NumPy simulado en entorno WebAssembly) -->
-    <py-config>
-        packages = ["numpy", "pillow"]
-    </py-config>
-
-    <script type="py">
-        import js
-        from pyodide.ffi import create_proxy
-        # Demostración del motor de Python en navegador
-        print("Entorno de Python inicializado correctamente en el navegador via WebAssembly.")
-    </script>
-
     <script>
         let tablaData = [];
-        let loadedImageSrc = null;
+        let imgElement = null;
+        let isDrawing = false;
+        let startX, startY, endX, endY;
+        let currentImageSrc = null;
 
         function cargarImagen(event) {
             const file = event.target.files[0];
@@ -205,105 +207,155 @@
 
             const reader = new FileReader();
             reader.onload = function(e) {
-                loadedImageSrc = e.target.result;
-                const container = document.getElementById('image-container');
-                container.innerHTML = `<img id="preview-img" src="${loadedImageSrc}" alt="Imagen subida">`;
+                currentImageSrc = e.target.result;
+                const wrapper = document.getElementById('canvas-wrapper');
+                wrapper.innerHTML = `
+                    <img id="preview-img" src="${currentImageSrc}" alt="Imagen grande">
+                    <div id="selection-box"></div>
+                `;
                 
-                // Ejecutar OCR automático con Tesseract
-                ejecutarOCRAutomatico(loadedImageSrc);
+                imgElement = document.getElementById('preview-img');
+                
+                imgElement.onload = function() {
+                    configurarEventosSeleccion();
+                    document.getElementById('loading-status').innerText = "✅ Imagen cargada a gran tamaño. Arrastra el ratón sobre ella para recortar y leer texto.";
+                };
             };
             reader.readAsDataURL(file);
         }
 
-        async function ejecutarOCRAutomatico(imageSrc) {
-            const statusDiv = document.getElementById('loading-status');
-            statusDiv.innerText = "⏳ Analizando imagen en tiempo real con OCR...";
+        function configurarEventosSeleccion() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const selectionBox = document.getElementById('selection-box');
 
-            try {
-                // Ejecutamos OCR en español/inglés
-                const worker = await Tesseract.createWorker('spa+eng');
-                const ret = await worker.recognize(imageSrc);
-                await worker.terminate();
+            wrapper.onmousedown = function(e) {
+                if (!imgElement) return;
+                const rect = wrapper.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                isDrawing = true;
 
-                statusDiv.innerText = "✅ ¡OCR completado con éxito! Recuadros generados.";
-                
-                // Procesar palabras detectadas para crear recuadros automáticos interactivos
-                generarRecuadrosInteractivos(ret.data);
-
-                // Llenar campos de ejemplo con el texto extraído
-                const lineas = ret.data.text.split('\n').filter(l => l.trim().length > 0);
-                if (lineas.length > 0) document.getElementById('campo-1').value = lineas[0] || '';
-                if (lineas.length > 1) document.getElementById('campo-2').value = lineas[1] || '';
-                if (lineas.length > 2) document.getElementById('campo-3').value = lineas.slice(2, 5).join(' ') || '';
-
-            } catch (err) {
-                console.error(err);
-                statusDiv.innerText = "❌ Error al procesar el OCR.";
-            }
-        }
-
-        function generarRecuadrosInteractivos(data) {
-            const container = document.getElementById('image-container');
-            const img = document.getElementById('preview-img');
-            
-            // Esperar a que cargue la imagen para calcular proporciones
-            img.onload = function() {
-                const naturalWidth = img.naturalWidth;
-                const naturalHeight = img.naturalHeight;
-                const clientWidth = img.clientWidth;
-                const clientHeight = img.clientHeight;
-
-                const scaleX = clientWidth / naturalWidth;
-                const scaleY = clientHeight / naturalHeight;
-
-                // Tomar bloques o líneas principales detectadas
-                if (data.lines) {
-                    data.lines.forEach((line, index) => {
-                        if (index > 15) return; // Limitar para no saturar
-                        const bbox = line.bbox; // {x0, y0, x1, y1}
-                        
-                        const boxDiv = document.createElement('div');
-                        boxDiv.className = 'ocr-box';
-                        boxDiv.style.left = (bbox.x0 * scaleX) + 'px';
-                        boxDiv.style.top = (bbox.y0 * scaleY) + 'px';
-                        boxDiv.style.width = ((bbox.x1 - bbox.x0) * scaleX) + 'px';
-                        boxDiv.style.height = ((bbox.y1 - bbox.y0) * scaleY) + 'px';
-                        
-                        boxDiv.title = line.text;
-                        boxDiv.onclick = function() {
-                            boxDiv.classList.toggle('selected');
-                            // Asignar al campo activo
-                            document.getElementById('campo-1').value = line.text;
-                        };
-
-                        container.appendChild(boxDiv);
-                    });
-                }
+                selectionBox.style.left = startX + 'px';
+                selectionBox.style.top = startY + 'px';
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.style.display = 'block';
             };
-            if (img.complete) img.onload();
+
+            wrapper.onmousemove = function(e) {
+                if (!isDrawing) return;
+                const rect = wrapper.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                const width = currentX - startX;
+                const height = currentY - startY;
+
+                selectionBox.style.width = Math.abs(width) + 'px';
+                selectionBox.style.height = Math.abs(height) + 'px';
+                selectionBox.style.left = (width < 0 ? currentX : startX) + 'px';
+                selectionBox.style.top = (height < 0 ? currentY : startY) + 'px';
+            };
+
+            wrapper.onmouseup = function(e) {
+                if (!isDrawing) return;
+                isDrawing = false;
+                const rect = wrapper.getBoundingClientRect();
+                endX = e.clientX - rect.left;
+                endY = e.clientY - rect.top;
+            };
         }
 
-        function agregarFilaExcel() {
-            const c1 = document.getElementById('campo-1').value;
-            const c2 = document.getElementById('campo-2').value;
-            const c3 = document.getElementById('campo-3').value;
+        function limpiarSelecciones() {
+            const selectionBox = document.getElementById('selection-box');
+            if (selectionBox) selectionBox.style.display = 'none';
+            // Remover recuadros previos guardados visualmente
+            document.querySelectorAll('.user-selected-box').forEach(el => el.remove());
+            document.getElementById('campo-texto').value = '';
+        }
 
-            if (!c1 && !c2 && !c3) {
-                alert("No hay datos para agregar.");
+        async function procesarSeleccionActual() {
+            if (!imgElement || !currentImageSrc) {
+                alert("Primero debes subir una imagen.");
                 return;
             }
 
-            tablaData.push({ "Campo 1": c1, "Campo 2": c2, "Campo 3": c3 });
+            const selectionBox = document.getElementById('selection-box');
+            if (selectionBox.style.display === 'none' || parseInt(selectionBox.style.width) < 5) {
+                alert("Por favor, arrastra el ratón sobre la imagen para seleccionar un recuadro primero.");
+                return;
+            }
+
+            // Obtener coordenadas relativas a la imagen real
+            const scaleX = imgElement.naturalWidth / imgElement.width;
+            const scaleY = imgElement.naturalHeight / imgElement.height;
+
+            const x = parseInt(selectionBox.style.left) * scaleX;
+            const y = parseInt(selectionBox.style.top) * scaleY;
+            const w = parseInt(selectionBox.style.width) * scaleX;
+            const h = parseInt(selectionBox.style.height) * scaleY;
+
+            document.getElementById('loading-status').innerText = "⏳ Extrayendo texto del área seleccionada...";
+
+            // Crear un canvas temporal para recortar la sección exacta de la imagen
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            
+            const imageObj = new Image();
+            imageObj.src = currentImageSrc;
+            imageObj.onload = async function() {
+                ctx.drawImage(imageObj, x, y, w, h, 0, 0, w, h);
+                const croppedDataUrl = canvas.toDataURL('image/png');
+
+                try {
+                    // Ejecutar Tesseract OCR solo en el recorte seleccionado
+                    const worker = await Tesseract.createWorker('spa+eng');
+                    const ret = await worker.recognize(croppedDataUrl);
+                    await worker.terminate();
+
+                    const textoExtraido = ret.data.text.trim();
+                    document.getElementById('campo-texto').value = textoExtraido;
+                    document.getElementById('loading-status').innerText = "✅ ¡Texto extraído con éxito del recuadro!";
+
+                    // Marcar visualmente permanente el recuadro seleccionado
+                    const wrapper = document.getElementById('canvas-wrapper');
+                    const permBox = document.createElement('div');
+                    permBox.className = 'user-selected-box';
+                    permBox.style.left = selectionBox.style.left;
+                    permBox.style.top = selectionBox.style.top;
+                    permBox.style.width = selectionBox.style.width;
+                    permBox.style.height = selectionBox.style.height;
+                    wrapper.appendChild(permBox);
+
+                    selectionBox.style.display = 'none';
+
+                } catch (err) {
+                    console.error(err);
+                    document.getElementById('loading-status').innerText = "❌ Error en el OCR del recorte.";
+                }
+            };
+        }
+
+        function agregarFilaExcel() {
+            const categoria = document.getElementById('campo-categoria').value || "Dato";
+            const texto = document.getElementById('campo-texto').value;
+
+            if (!texto) {
+                alert("No hay texto extraído para agregar.");
+                return;
+            }
+
+            tablaData.push({ "Categoría": categoria, "Texto Extraído": texto });
             
             const tbody = document.querySelector('#tabla-datos tbody');
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${c1}</td><td>${c2}</td><td>${c3}</td>`;
+            tr.innerHTML = `<td>${categoria}</td><td>${texto}</td>`;
             tbody.appendChild(tr);
 
-            // Limpiar campos
-            document.getElementById('campo-1').value = '';
-            document.getElementById('campo-2').value = '';
-            document.getElementById('campo-3').value = '';
+            document.getElementById('campo-texto').value = '';
+            document.getElementById('campo-categoria').value = '';
         }
 
         function exportarExcel() {
@@ -313,8 +365,8 @@
             }
             const worksheet = XLSX.utils.json_to_sheet(tablaData);
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Extraccion_OCR");
-            XLSX.writeFile(workbook, "Datos_Extraidos_OCR.xlsx");
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Recortes_OCR");
+            XLSX.writeFile(workbook, "Datos_Seleccionados_OCR.xlsx");
         }
     </script>
 </body>
