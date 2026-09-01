@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor OCR Masivo - Pestañas (Fotos y Cámara)</title>
+    <title>Extractor OCR Masivo - Pestañas (Fotos y Selector de Cámara)</title>
     
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -69,16 +69,18 @@
             align-items: center;
             justify-content: center;
             gap: 15px;
+            flex-wrap: wrap;
         }
         .config-section label { font-weight: bold; color: #2980b9; }
-        .config-section input[type="number"] {
-            width: 70px;
+        .config-section input[type="number"], .config-section select {
             padding: 6px;
             font-size: 14px;
             border: 1px solid #bdc3c7;
             border-radius: 4px;
-            text-align: center;
+            background: white;
         }
+        .config-section input[type="number"] { width: 70px; text-align: center; }
+        .config-section select { min-width: 220px; }
 
         .upload-section {
             display: flex;
@@ -126,7 +128,6 @@
             border-radius: 6px;
         }
         
-        /* Cursores según el modo */
         .image-scroll-container.modo-seleccionar { cursor: crosshair; }
         .image-scroll-container.modo-zoom-area { cursor: zoom-in; }
         .image-scroll-container.modo-navegar { cursor: grab; }
@@ -142,7 +143,6 @@
             pointer-events: none;
         }
 
-        /* Estilos específicos para video de cámara en vivo */
         #cam-video {
             display: block;
             width: 100%;
@@ -255,9 +255,8 @@
 
     <div class="container">
         <h1>📸 Extractor OCR Multimodo</h1>
-        <p class="subtitle">Selecciona una pestaña para trabajar con Lote de Fotos o Transmisión Directa por Cámara.</p>
+        <p class="subtitle">Pestaña 1: Lote de fotos | Pestaña 2: Cámara en vivo con selector de dispositivo.</p>
 
-        <!-- Navegación de Pestañas -->
         <div class="tabs-nav">
             <button class="tab-btn active" onclick="cambiarPestaña(1)">📂 Pestaña 1: Lote de Fotos</button>
             <button class="tab-btn" onclick="cambiarPestaña(2)">📷 Pestaña 2: Cámara en Vivo</button>
@@ -336,21 +335,27 @@
         </div>
 
         <!-- ========================================= -->
-        <!-- PESTAÑA 2: CÁMARA EN VIVO -->
+        <!-- PESTAÑA 2: CÁMARA EN VIVO CON SELECTOR -->
         <!-- ========================================= -->
         <div id="tab-2" class="tab-content">
             <div class="config-section">
-                <label for="num-rangos-2">Cantidad de recuadros a extraer (1 a 20):</label>
+                <label for="num-rangos-2">Recuadros:</label>
                 <input type="number" id="num-rangos-2" min="1" max="20" value="4" onchange="appCamara.actualizarCantidadRangos()">
-                <button class="btn btn-warning" onclick="appCamara.resetearConfiguracionRangos()" style="width: auto; margin:0; padding: 6px 12px; font-size: 13px;">Aplicar / Reiniciar</button>
+                
+                <label for="select-camara">Cámara:</label>
+                <select id="select-camara">
+                    <option value="">-- Detectando cámaras... --</option>
+                </select>
+
+                <button class="btn btn-warning" onclick="appCamara.resetearConfiguracionRangos()" style="width: auto; margin:0; padding: 6px 12px; font-size: 13px;">🔄 Reiniciar Rangos</button>
             </div>
 
             <div class="upload-section">
-                <button class="btn btn-secondary" onclick="appCamara.iniciarCamara()" style="margin:0; flex:1;">▶️ Encender Cámara</button>
+                <button class="btn btn-secondary" onclick="appCamara.iniciarCamara()" style="margin:0; flex:1;">▶️ Encender Cámara Seleccionada</button>
                 <button class="btn btn-danger" onclick="appCamara.apagarCamara()" style="margin:0; flex:1;">⏹️ Apagar Cámara</button>
             </div>
 
-            <div class="loading-status" id="loading-status-2">Enciende la cámara para proyectar la imagen en tiempo real.</div>
+            <div class="loading-status" id="loading-status-2">Selecciona una cámara y enciéndela para comenzar.</div>
 
             <div class="workspace">
                 <div class="pane">
@@ -410,7 +415,6 @@
             }
         }
 
-        // Clase unificada para manejar la lógica de las dos pestañas de manera independiente
         class ExtractorOCRApp {
             constructor(idSufijo, esCamara = false) {
                 this.id = idSufijo;
@@ -442,6 +446,38 @@
                 if (this.esCamara) {
                     this.mediaElement = document.getElementById(`cam-video`);
                     this.configurarInteraccionCanvas();
+                    this.poblarListaCamaras();
+                }
+            }
+
+            async poblarListaCamaras() {
+                try {
+                    // Se requiere pedir permisos rápidos o listar dispositivos (navegadores requieren permisos previos para mostrar etiquetas de nombre)
+                    await navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+                        stream.getTracks().forEach(track => track.stop()); // apagar de inmediato tras pedir permiso
+                    }).catch(e => console.log("Permiso de cámara inicial omitido o denegado:", e));
+
+                    const dispositivos = await navigator.mediaDevices.enumerateDevices();
+                    const selectCam = document.getElementById(`select-camara`);
+                    selectCam.innerHTML = '';
+
+                    const videoDevices = dispositivos.filter(device => device.kind === 'videoinput');
+
+                    if (videoDevices.length === 0) {
+                        selectCam.innerHTML = '<option value="">No se encontraron cámaras</option>';
+                        return;
+                    }
+
+                    videoDevices.forEach((device, index) => {
+                        const option = document.createElement('option');
+                        option.value = device.deviceId;
+                        option.text = device.label || `Cámara ${index + 1}`;
+                        selectCam.appendChild(option);
+                    });
+                } catch (err) {
+                    console.error("Error enumerando cámaras:", err);
+                    const selectCam = document.getElementById(`select-camara`);
+                    selectCam.innerHTML = '<option value="">Error al listar cámaras</option>';
                 }
             }
 
@@ -566,7 +602,17 @@
 
             async iniciarCamara() {
                 try {
-                    this.streamCamara = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+                    this.apagarCamara(); // Cerrar flujo anterior si existe
+
+                    const selectCam = document.getElementById(`select-camara`);
+                    const deviceIdSelected = selectCam.value;
+
+                    // Configurar restricciones basadas en el ID de la cámara seleccionada (frontal/trasera/externa)
+                    const constraints = {
+                        video: deviceIdSelected ? { deviceId: { exact: deviceIdSelected } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
+                    };
+
+                    this.streamCamara = await navigator.mediaDevices.getUserMedia(constraints);
                     this.mediaElement = document.getElementById(`cam-video`);
                     this.mediaElement.srcObject = this.streamCamara;
                     
@@ -575,7 +621,7 @@
                     this.configurarInteraccionCanvas();
                 } catch (err) {
                     console.error(err);
-                    alert("No se pudo acceder a la cámara. Revisa los permisos del navegador.");
+                    alert("No se pudo iniciar la cámara seleccionada. Es posible que esté ocupada por otra aplicación o falten permisos.");
                 }
             }
 
@@ -961,7 +1007,6 @@
             }
         }
 
-        // Instanciar ambas aplicaciones en sus respectivas pestañas
         const appFotos = new ExtractorOCRApp('1', false);
         const appCamara = new ExtractorOCRApp('2', true);
 
