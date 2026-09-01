@@ -442,7 +442,11 @@
                             ctx.drawImage(imageObj, x, y, w, h, 0, 0, w, h);
                             const croppedDataUrl = canvas.toDataURL('image/png');
                             const ret = await worker.recognize(croppedDataUrl);
-                            resolve(ret.data.text.trim());
+                            let texto = ret.data.text.trim();
+                            // Corrección automática común para correos (elimina espacios alrededor de @ y puntos)
+                            texto = texto.replace(/\s*@\s*/g, '@');
+                            texto = texto.replace(/([a-zA-Z0-9._%+-])\s+([a-zA-Z0-9._%+-])/g, '$1$2'); // une espacios dentro de cadenas técnicas
+                            resolve(texto);
                         };
                     });
 
