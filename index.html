@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor OCR Masivo - Rangos Dinámicos y Zoom</title>
+    <title>Extractor OCR Masivo - Modos Separados (Zoom y Selección)</title>
     
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -90,15 +90,23 @@
             position: relative;
             width: 100%;
             height: 550px;
-            overflow: hidden; /* Oculta lo que sale del contenedor para mantener el tamaño fijo */
+            overflow: hidden;
             border: 2px solid #bdc3c7;
             background: #2c3e50;
             border-radius: 6px;
+        }
+        
+        /* Cursor dinámico dependiendo del modo activo */
+        #image-scroll-container.modo-seleccionar {
+            cursor: crosshair;
+        }
+        #image-scroll-container.modo-navegar {
             cursor: grab;
         }
-        #image-scroll-container:active {
+        #image-scroll-container.modo-navegar:active {
             cursor: grabbing;
         }
+
         #canvas-wrapper {
             position: absolute;
             transform-origin: 0 0;
@@ -164,6 +172,16 @@
         .btn-secondary:hover { background-color: #1f618d; }
         .btn-warning { background-color: #e67e22; }
         .btn-warning:hover { background-color: #d35400; }
+        
+        .btn-mode {
+            opacity: 0.6;
+            border: 2px solid transparent;
+        }
+        .btn-mode.active {
+            opacity: 1;
+            border: 2px solid #fff;
+            box-shadow: 0 0 8px rgba(0,0,0,0.3);
+        }
 
         table {
             width: 100%; border-collapse: collapse; margin-top: 10px; background: white;
@@ -190,8 +208,8 @@
 <body>
 
     <div class="container">
-        <h1>📸 Extractor OCR Masivo (Rangos Dinámicos & Zoom)</h1>
-        <p class="subtitle">Configura cuántos recuadros necesitas, haz zoom/pan con el ratón en la imagen y dibuja los rangos secuencialmente.</p>
+        <h1>📸 Extractor OCR Masivo (Conmutador de Modos)</h1>
+        <p class="subtitle">Selecciona el modo de interacción para moverte/hacer zoom o para dibujar tus recuadros con total comodidad.</p>
 
         <!-- Configuración de cantidad de rangos -->
         <div class="config-section">
@@ -200,7 +218,7 @@
             <button class="btn btn-warning" onclick="resetearConfiguracionRangos()" style="width: auto; margin:0; padding: 6px 12px; font-size: 13px;">Aplicar / Reiniciar</button>
         </div>
 
-        <!-- Zona de Carga por Archivo o Carpeta -->
+        <!-- Zona de Carga -->
         <div class="upload-section">
             <div class="upload-box" onclick="document.getElementById('file-input').click()">
                 <p>📂 <strong>Subir Fotos Individuales</strong></p>
@@ -220,28 +238,33 @@
         <div id="loading-status">Sube fotos o una carpeta para comenzar.</div>
 
         <div class="workspace">
-            <!-- Panel Izquierdo: Imagen con Zoom, Pan y Recuadros -->
+            <!-- Panel Izquierdo: Controles de Modo y Visualizador -->
             <div class="pane">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h3 style="margin:0; border:none;">Imagen Actual (<span id="active-box-label">Rango 1</span>/<span id="total-box-label">4</span>)</h3>
-                    <div>
-                        <button class="btn btn-secondary" onclick="resetZoom()" style="margin:0; width:auto; padding: 4px 8px; font-size: 11px;">🔍 Reset Zoom</button>
-                        <button class="btn btn-warning" onclick="reiniciarRecuadrosActuales()" style="margin:0; width:auto; padding: 4px 8px; font-size: 11px;">🔄 Borrar Recuadros</button>
-                    </div>
+                    <h3 style="margin:0; border:none;">Imagen (<span id="active-box-label">Rango 1</span>/<span id="total-box-label">4</span>)</h3>
+                    <button class="btn btn-warning" onclick="reiniciarRecuadrosActuales()" style="margin:0; width:auto; padding: 4px 8px; font-size: 11px;">🔄 Borrar Recuadros</button>
                 </div>
-                <div id="image-scroll-container">
+
+                <!-- Botones para alternar Modo -->
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <button id="btn-modo-seleccionar" class="btn btn-secondary btn-mode active" onclick="cambiarModo('seleccionar')" style="margin:0; flex:1; padding: 6px; font-size: 12px;">✏️ 1. Seleccionar Rango</button>
+                    <button id="btn-modo-navegar" class="btn btn-secondary btn-mode" onclick="cambiarModo('navegar')" style="margin:0; flex:1; padding: 6px; font-size: 12px; background-color: #34495e;">✋ 2. Mover / Zoom</button>
+                    <button class="btn btn-warning" onclick="resetZoom()" style="margin:0; width:auto; padding: 6px 10px; font-size: 11px;" title="Restaurar zoom original">🔍 Reset</button>
+                </div>
+
+                <div id="image-scroll-container" class="modo-seleccionar">
                     <div id="canvas-wrapper">
                         <span id="placeholder-text" style="color: #fff; padding: 20px; display: block;">Sin imágenes cargadas</span>
                     </div>
                 </div>
-                <p style="font-size: 11px; color: #666; margin-top: 6px;">💡 <b>Usa la rueda del ratón</b> para hacer Zoom. <b>Haz clic y arrastra</b> para moverte por la imagen. Dibuja los recuadros en orden.</p>
+                <p id="modo-instruccion" style="font-size: 11px; color: #2980b9; margin-top: 6px; font-weight: bold;">💡 Modo actual: Dibuja el recuadro haciendo clic y arrastrando el ratón.</p>
             </div>
 
             <!-- Panel Derecho: Campos dinámicos y Tabla -->
             <div class="pane">
                 <h3>2. Campos Extraídos</h3>
                 <div id="campos-dinamicos-container">
-                    <!-- Se generan dinámicamente -->
+                    <!-- Dinámico -->
                 </div>
 
                 <button class="btn" onclick="ejecutarProcesoYpasarSiguiente()">⚡ Ejecutar OCR y Siguiente Foto ➡️</button>
@@ -274,7 +297,10 @@
         let recuadrosActuales = []; 
         let currentSelectionBox = null;
 
-        // Variables para Control de Zoom y Pan (Arrastre)
+        // Modos: 'seleccionar' o 'navegar'
+        let modoActual = 'seleccionar';
+
+        // Zoom y Pan
         let scale = 1;
         let panX = 0;
         let panY = 0;
@@ -282,6 +308,27 @@
         let startPanX = 0, startPanY = 0;
         let isDrawing = false;
         let startX = 0, startY = 0;
+
+        function cambiarModo(nuevoModo) {
+            modoActual = nuevoModo;
+            const container = document.getElementById('image-scroll-container');
+            const btnSel = document.getElementById('btn-modo-seleccionar');
+            const btnNav = document.getElementById('btn-modo-navegar');
+            const txtInstruccion = document.getElementById('modo-instruccion');
+
+            btnSel.classList.remove('active');
+            btnNav.classList.remove('active');
+
+            if (modoActual === 'seleccionar') {
+                container.className = 'modo-seleccionar';
+                btnSel.classList.add('active');
+                txtInstruccion.innerText = "💡 Modo actual: Dibuja el recuadro haciendo clic y arrastrando el ratón.";
+            } else {
+                container.className = 'modo-navegar';
+                btnNav.classList.add('active');
+                txtInstruccion.innerText = "💡 Modo actual: Arrastra la imagen para moverte por ella. Usa la rueda del ratón para hacer Zoom.";
+            }
+        }
 
         function actualizarCantidadRangos() {
             let val = parseInt(document.getElementById('num-rangos').value);
@@ -322,7 +369,6 @@
             trHead.innerHTML = html;
         }
 
-        // Inicializar al cargar la página
         window.onload = function() {
             actualizarCantidadRangos();
         }
@@ -397,7 +443,7 @@
             const container = document.getElementById('image-scroll-container');
             const wrapper = document.getElementById('canvas-wrapper');
 
-            // Zoom con la rueda del ratón hacia el cursor
+            // Zoom con rueda del ratón (activo en cualquier modo)
             container.onwheel = function(e) {
                 e.preventDefault();
                 if (!imgElement) return;
@@ -415,50 +461,46 @@
                     scale /= zoomFactor;
                 }
 
-                scale = Math.max(0.5, Math.min(scale, 10)); // Límites de zoom
+                scale = Math.max(0.5, Math.min(scale, 10));
 
-                // Ajustar pan para hacer zoom centrado en el puntero del mouse
                 panX = mouseX - (mouseX - panX) * (scale / oldScale);
                 panY = mouseY - (mouseY - panY) * (scale / oldScale);
 
                 actualizarTransformacionCanvas();
             };
 
-            // Controles de Mouse (Click derecho o Shift+Click o Botón central para arrastrar, Clic izquierdo normal para dibujar)
             container.onmousedown = function(e) {
                 if (!imgElement) return;
 
-                // Si se presiona el botón central (1) o Shift + Click izquierdo, se mueve la imagen (Pan)
-                if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
-                    isDraggingImage = true;
-                    startPanX = e.clientX - panX;
-                    startPanY = e.clientY - panY;
-                    e.preventDefault();
-                    return;
-                }
+                if (e.button === 0) { // Clic izquierdo
+                    if (modoActual === 'navegar') {
+                        // Iniciar desplazamiento (Pan)
+                        isDraggingImage = true;
+                        startPanX = e.clientX - panX;
+                        startPanY = e.clientY - panY;
+                        e.preventDefault();
+                    } else if (modoActual === 'seleccionar') {
+                        // Iniciar dibujo de recuadro
+                        if (recuadrosActuales.length >= totalRangos) {
+                            alert(`Ya has seleccionado los ${totalRangos} recuadros. Pulsa "Ejecutar OCR".`);
+                            return;
+                        }
 
-                // Dibujar recuadro con Click Izquierdo normal
-                if (e.button === 0) {
-                    if (recuadrosActuales.length >= totalRangos) {
-                        alert(`Ya has seleccionado los ${totalRangos} recuadros. Pulsa "Ejecutar OCR".`);
-                        return;
+                        const rect = wrapper.getBoundingClientRect();
+                        startX = (e.clientX - rect.left) / scale;
+                        startY = (e.clientY - rect.top) / scale;
+                        isDrawing = true;
+
+                        currentSelectionBox.style.left = startX + 'px';
+                        currentSelectionBox.style.top = startY + 'px';
+                        currentSelectionBox.style.width = '0px';
+                        currentSelectionBox.style.height = '0px';
+                        currentSelectionBox.style.display = 'block';
+
+                        document.addEventListener('mousemove', onMouseMoveGlobal);
+                        document.addEventListener('mouseup', onMouseUpGlobal);
+                        e.preventDefault();
                     }
-
-                    const rect = wrapper.getBoundingClientRect();
-                    // Coordenadas relativas dentro del wrapper escalado
-                    startX = (e.clientX - rect.left) / scale;
-                    startY = (e.clientY - rect.top) / scale;
-                    isDrawing = true;
-
-                    currentSelectionBox.style.left = startX + 'px';
-                    currentSelectionBox.style.top = startY + 'px';
-                    currentSelectionBox.style.width = '0px';
-                    currentSelectionBox.style.height = '0px';
-                    currentSelectionBox.style.display = 'block';
-
-                    document.addEventListener('mousemove', onMouseMoveGlobal);
-                    document.addEventListener('mouseup', onMouseUpGlobal);
-                    e.preventDefault();
                 }
             };
 
@@ -508,7 +550,6 @@
                     recuadrosActuales.push(boxData);
                     currentSelectionBox.style.display = 'none';
 
-                    // Crear caja permanente verde
                     const permBox = document.createElement('div');
                     permBox.className = 'saved-box';
                     permBox.style.left = boxData.left + 'px';
@@ -597,14 +638,12 @@
 
                 await worker.terminate();
 
-                // Guardar en estructura de datos para la tabla
                 let rowData = { "Archivo": foto.name };
                 for (let i = 0; i < totalRangos; i++) {
                     rowData[`R${i+1}`] = resultadosOCR[i];
                 }
                 tablaData.push(rowData);
 
-                // Agregar fila a la tabla visual
                 const tbody = document.querySelector('#tabla-datos tbody');
                 let trHtml = `<td>${foto.name}</td>`;
                 for (let i = 0; i < totalRangos; i++) {
